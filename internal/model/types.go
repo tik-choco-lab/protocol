@@ -2,7 +2,6 @@ package model
 
 import "fmt"
 
-// TypeInfo holds metadata about a primitive type
 type TypeInfo struct {
 	Name     string
 	Bits     int
@@ -12,7 +11,6 @@ type TypeInfo struct {
 	MaxValue string
 }
 
-// Known types with their sizes and ranges
 var KnownTypes = map[string]TypeInfo{
 	"u8":   {Name: "u8", Bits: 8, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "255"},
 	"u16":  {Name: "u16", Bits: 16, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "65535"},
@@ -28,23 +26,20 @@ var KnownTypes = map[string]TypeInfo{
 	"bool": {Name: "bool", Bits: 1, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "1"},
 }
 
-// Field represents a single field in a protocol
 type Field struct {
 	Name     string
-	Type     string   // Primitive type or "struct" or "enum"
-	Children []*Field // For nested structs
-	Enum     *EnumDef // For enum types
-	BitSize  int      // Resolved bit size
-	Offset   int      // Bit offset within the packet
+	Type     string
+	Children []*Field
+	Enum     *EnumDef
+	BitSize  int
+	Offset   int
 }
 
-// EnumDef represents an enum definition
 type EnumDef struct {
 	Variants []string
-	Bits     int // bits needed to represent all variants
+	Bits     int
 }
 
-// Protocol represents a parsed protocol definition
 type Protocol struct {
 	Name      string
 	PacketID  uint16
@@ -54,7 +49,15 @@ type Protocol struct {
 	TotalBits int
 }
 
-// BitsForEnum calculates the minimum bits needed for n variants
+func (p *Protocol) ResolveBits() {
+	offset := 0
+	for _, f := range p.Fields {
+		bits := ResolveFieldBits(f, offset)
+		offset += bits
+	}
+	p.TotalBits = offset
+}
+
 func BitsForEnum(n int) int {
 	if n <= 1 {
 		return 1
@@ -68,7 +71,6 @@ func BitsForEnum(n int) int {
 	return bits
 }
 
-// ResolveFieldBits recursively resolves bit sizes for fields
 func ResolveFieldBits(f *Field, offset int) int {
 	if f.Enum != nil {
 		f.Enum.Bits = BitsForEnum(len(f.Enum.Variants))
@@ -78,7 +80,6 @@ func ResolveFieldBits(f *Field, offset int) int {
 	}
 
 	if len(f.Children) > 0 {
-		// Struct-like field
 		totalBits := 0
 		for _, child := range f.Children {
 			bits := ResolveFieldBits(child, offset+totalBits)
@@ -89,25 +90,21 @@ func ResolveFieldBits(f *Field, offset int) int {
 		return totalBits
 	}
 
-	// Primitive type
 	if info, ok := KnownTypes[f.Type]; ok {
 		f.BitSize = info.Bits
 		f.Offset = offset
 		return f.BitSize
 	}
 
-	// Unknown type, default to 0
 	f.BitSize = 0
 	f.Offset = offset
 	return 0
 }
 
-// TotalBytes returns total bytes (ceil of bits/8)
 func (p *Protocol) TotalBytes() int {
 	return (p.TotalBits + 7) / 8
 }
 
-// FormatBitRange returns a human-readable bit range string
 func FormatBitRange(offset, size int) string {
 	if size == 0 {
 		return "N/A"

@@ -1,5 +1,5 @@
 name: update_position
-fields:
+struct:
     position:
         x: f32
         "y": f32

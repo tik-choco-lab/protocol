@@ -43,21 +43,6 @@ type EnumValue struct {
 	Name  string `json:"name"`
 }
 
-type IndexJSON struct {
-	Protocols []ProtocolSummary `json:"protocols"`
-	Total     int               `json:"total"`
-}
-
-type ProtocolSummary struct {
-	Name       string `json:"name"`
-	PacketID   uint16 `json:"packet_id"`
-	PacketHex  string `json:"packet_id_hex"`
-	TotalBits  int    `json:"total_bits"`
-	TotalBytes int    `json:"total_bytes"`
-	Reliable   bool   `json:"reliable"`
-	Ordered    bool   `json:"ordered"`
-}
-
 func Generate(protocols []*model.Protocol, outDir string) error {
 	if err := os.MkdirAll(outDir, permDir); err != nil {
 		return fmt.Errorf("failed to create output dir: %w", err)
@@ -75,36 +60,7 @@ func Generate(protocols []*model.Protocol, outDir string) error {
 		}
 	}
 
-	index := buildIndex(protocols)
-	out, err := json.MarshalIndent(index, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal index: %w", err)
-	}
-	indexPath := filepath.Join(outDir, "_index.json")
-	if err := os.WriteFile(indexPath, out, permFile); err != nil {
-		return fmt.Errorf("failed to write index: %w", err)
-	}
-
 	return nil
-}
-
-func buildIndex(protocols []*model.Protocol) IndexJSON {
-	summaries := make([]ProtocolSummary, len(protocols))
-	for i, p := range protocols {
-		summaries[i] = ProtocolSummary{
-			Name:       p.Name,
-			PacketID:   p.PacketID,
-			PacketHex:  fmt.Sprintf("0x%04X", p.PacketID),
-			TotalBits:  p.TotalBits,
-			TotalBytes: p.TotalBytes(),
-			Reliable:   p.Reliable,
-			Ordered:    p.Ordered,
-		}
-	}
-	return IndexJSON{
-		Protocols: summaries,
-		Total:     len(protocols),
-	}
 }
 
 func buildJSON(p *model.Protocol) ProtocolJSON {

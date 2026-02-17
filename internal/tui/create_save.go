@@ -17,6 +17,7 @@ func (m *CreateModel) save() error {
 		Reliable: m.reliable,
 		Ordered:  m.ordered,
 	}
+	p.ResolveBits()
 
 	simpleDir := m.protocolsDir
 	strictDir := filepath.Join(filepath.Dir(m.protocolsDir), "strict")

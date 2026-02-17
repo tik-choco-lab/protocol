@@ -1,5 +1,5 @@
 name: update_equip
-fields:
+struct:
     action:
         enum:
             - clear

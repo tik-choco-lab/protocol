@@ -1,5 +1,5 @@
 name: add_item
-fields:
+struct:
     count: u16
     item_id: u32
 reliable: true

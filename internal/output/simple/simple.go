@@ -17,7 +17,7 @@ const (
 
 type protocolYAML struct {
 	Name     string                 `yaml:"name"`
-	Fields   map[string]interface{} `yaml:"fields"`
+	Struct   map[string]interface{} `yaml:"struct"`
 	Reliable bool                   `yaml:"reliable"`
 	Ordered  bool                   `yaml:"ordered"`
 }
@@ -39,38 +39,13 @@ func Generate(protocols []*model.Protocol, outDir string) error {
 		}
 	}
 
-	index := buildIndex(protocols)
-	out, err := yaml.Marshal(index)
-	if err != nil {
-		return fmt.Errorf("failed to marshal index: %w", err)
-	}
-	indexPath := filepath.Join(outDir, "_index.yaml")
-	if err := os.WriteFile(indexPath, out, permFile); err != nil {
-		return fmt.Errorf("failed to write index: %w", err)
-	}
-
 	return nil
-}
-
-func buildIndex(protocols []*model.Protocol) interface{} {
-	items := make([]map[string]interface{}, len(protocols))
-	for i, p := range protocols {
-		items[i] = map[string]interface{}{
-			"name":     p.Name,
-			"reliable": p.Reliable,
-			"ordered":  p.Ordered,
-		}
-	}
-	return map[string]interface{}{
-		"protocols": items,
-		"total":     len(protocols),
-	}
 }
 
 func buildYAML(p *model.Protocol) protocolYAML {
 	return protocolYAML{
 		Name:     p.Name,
-		Fields:   fieldsToMap(p.Fields),
+		Struct:   fieldsToMap(p.Fields),
 		Reliable: p.Reliable,
 		Ordered:  p.Ordered,
 	}

@@ -1,29 +1,29 @@
 {
   "name": "add_item",
-  "packet_id": 0,
-  "packet_id_hex": "0x0000",
-  "total_bits": 0,
-  "total_bytes": 0,
+  "packet_id": 1,
+  "packet_id_hex": "0x0001",
+  "total_bits": 48,
+  "total_bytes": 6,
   "reliable": true,
   "ordered": true,
   "fields": [
     {
-      "name": "item_id",
-      "type": "u32",
-      "bits": 0,
-      "bit_offset": 0,
-      "bit_range": "N/A",
-      "min": "0",
-      "max": "4294967295"
-    },
-    {
       "name": "count",
       "type": "u16",
-      "bits": 0,
+      "bits": 16,
       "bit_offset": 0,
-      "bit_range": "N/A",
+      "bit_range": "bits 0..15",
       "min": "0",
       "max": "65535"
+    },
+    {
+      "name": "item_id",
+      "type": "u32",
+      "bits": 32,
+      "bit_offset": 16,
+      "bit_range": "bits 16..47",
+      "min": "0",
+      "max": "4294967295"
     }
   ]
 }

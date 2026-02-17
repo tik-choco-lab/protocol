@@ -1,0 +1,5 @@
+name: set_username
+struct:
+    name: u64
+reliable: true
+ordered: true
