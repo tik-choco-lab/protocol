@@ -105,18 +105,23 @@ func (m *CreateModel) viewFieldName() string {
 	if len(*fields) > 0 {
 		sb.WriteString(subtitleStyle.Render("  追加済みフィールド:"))
 		sb.WriteString("\n")
-		for _, f := range *fields {
-			sb.WriteString(renderFieldTree(f, treeIndent))
+		for i, f := range *fields {
+			isSelected := (i == m.fieldCursor)
+			sb.WriteString(renderFieldTree(f, treeIndent, isSelected))
 		}
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString(subtitleStyle.Render("  フィールド名を入力:"))
+	subtitle := "  フィールド名を入力 / 既存を選択:"
+	if m.editingIndex >= 0 {
+		subtitle = fmt.Sprintf("  フィールド名を編集 (Index: %d):", m.editingIndex)
+	}
+	sb.WriteString(subtitleStyle.Render(subtitle))
 	sb.WriteString("\n\n")
 	sb.WriteString("  " + m.textInput.View())
 	sb.WriteString("\n\n")
 
-	hint := "enter 確定  │  空enter フィールド追加終了"
+	hint := "enter 確定 (新規/完了)  │  ↑/↓ 選択  │  e 編集  │  x 削除"
 	if len(m.fieldStack) > 0 {
 		hint = "enter 確定  │  空enter struct終了  │  esc 親に戻る"
 	}
@@ -240,25 +245,41 @@ func renderToggle(value bool, onLabel, offLabel string) string {
 	return "    " + onStyle.Render(onLabel) + "  " + offStyle.Render(offLabel)
 }
 
-func renderFieldTree(f *model.Field, indent int) string {
+func renderFieldTree(f *model.Field, indent int, selected bool) string {
 	var sb strings.Builder
 	prefix := strings.Repeat("  ", indent)
 	icon := lipgloss.NewStyle().Foreground(colorSecondary).Render("●")
+	if selected {
+		icon = lipgloss.NewStyle().Foreground(colorAccent).Render("▸")
+		prefix = strings.Repeat("  ", indent-1) + " "
+	}
 	typeStyle := lipgloss.NewStyle().Foreground(colorAccent)
 
-	if f.Enum != nil {
-		sb.WriteString(fmt.Sprintf("%s%s %s: %s [%s]\n", prefix, icon, f.Name,
-			typeStyle.Render("enum"),
-			strings.Join(f.Enum.Variants, ", ")))
-	} else if len(f.Children) > 0 {
-		sb.WriteString(fmt.Sprintf("%s%s %s: %s\n", prefix, icon, f.Name,
-			typeStyle.Render("struct")))
-		for _, c := range f.Children {
-			sb.WriteString(renderFieldTree(c, indent+1))
-		}
-	} else {
-		sb.WriteString(fmt.Sprintf("%s%s %s: %s\n", prefix, icon, f.Name,
-			typeStyle.Render(f.Type)))
+	lineStyle := lipgloss.NewStyle()
+	if selected {
+		lineStyle = lineStyle.Background(colorBgLight).Bold(true)
 	}
+
+	var content string
+	if f.Enum != nil {
+		content = fmt.Sprintf("%s %s: %s [%s]", icon, f.Name,
+			typeStyle.Render("enum"),
+			strings.Join(f.Enum.Variants, ", "))
+	} else if len(f.Children) > 0 {
+		content = fmt.Sprintf("%s %s: %s", icon, f.Name,
+			typeStyle.Render("struct"))
+	} else {
+		content = fmt.Sprintf("%s %s: %s", icon, f.Name,
+			typeStyle.Render(f.Type))
+	}
+
+	sb.WriteString(prefix + lineStyle.Render(content) + "\n")
+
+	if len(f.Children) > 0 {
+		for _, c := range f.Children {
+			sb.WriteString(renderFieldTree(c, indent+1, false))
+		}
+	}
+
 	return sb.String()
 }

@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/tik-choco-lab/protocol/internal/model"
@@ -9,6 +11,13 @@ import (
 )
 
 func (m *CreateModel) save() error {
+	if m.originalName != "" && m.originalName != m.protocolName {
+		oldSimple := filepath.Join(m.protocolsDir, m.originalName+".yaml")
+		oldStrict := filepath.Join(filepath.Dir(m.protocolsDir), "strict", m.originalName+".json")
+		_ = os.Remove(oldSimple)
+		_ = os.Remove(oldStrict)
+	}
+
 	p := &model.Protocol{
 		Name:     m.protocolName,
 		Fields:   m.rootFields,

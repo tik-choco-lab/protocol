@@ -1,5 +1,5 @@
 name: set_username
 struct:
-    name: u64
+    name: string
 reliable: true
 ordered: true

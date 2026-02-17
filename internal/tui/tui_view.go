@@ -80,6 +80,7 @@ func (m Model) viewList() string {
 	help := []string{
 		"↑/↓ navigate",
 		"a add new",
+		"e edit",
 		"x delete",
 		"s simple view",
 		"d strict view",

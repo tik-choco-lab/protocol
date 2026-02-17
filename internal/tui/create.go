@@ -34,6 +34,7 @@ var typeOptions = []string{
 	"i8", "i16", "i32", "i64",
 	"f16", "f32", "f64",
 	"bool",
+	"string",
 	"── special ──",
 	"struct",
 	"enum",
@@ -43,10 +44,13 @@ type CreateModel struct {
 	step                createStep
 	textInput           textinput.Model
 	protocolName        string
+	originalName        string
 	reliable            bool
 	ordered             bool
 	rootFields          []*model.Field
 	fieldStack          []fieldContext
+	fieldCursor         int
+	editingIndex        int
 	typeCursor          int
 	currentFieldName    string
 	currentEnumVariants []string
@@ -54,6 +58,7 @@ type CreateModel struct {
 	done                bool
 	saved               bool
 	errMsg              string
+	skipNextKey         bool
 }
 
 type fieldContext struct {
@@ -74,6 +79,27 @@ func NewCreateModel(protocolsDir string) CreateModel {
 		protocolsDir: protocolsDir,
 		reliable:     true,
 		ordered:      true,
+		editingIndex: -1,
+	}
+}
+
+func NewEditModel(p *model.Protocol, protocolsDir string) CreateModel {
+	ti := textinput.New()
+	ti.Focus()
+	ti.SetValue(p.Name)
+	ti.CharLimit = charLimit
+	ti.Width = textInputWidth
+
+	return CreateModel{
+		step:         createStepName,
+		textInput:    ti,
+		protocolName: p.Name,
+		originalName: p.Name,
+		rootFields:   p.Fields,
+		reliable:     p.Reliable,
+		ordered:      p.Ordered,
+		protocolsDir: protocolsDir,
+		editingIndex: -1,
 	}
 }
 
@@ -116,6 +142,15 @@ func (m *CreateModel) Update(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (m *CreateModel) UpdateTextInput(msg tea.Msg) tea.Cmd {
+	if m.step == createStepFieldName {
+		if _, ok := msg.(tea.KeyMsg); ok {
+			if m.skipNextKey {
+				m.skipNextKey = false
+				return nil
+			}
+		}
+	}
+
 	if m.step == createStepName || m.step == createStepFieldName || m.step == createStepEnumVariant {
 		var cmd tea.Cmd
 		m.textInput, cmd = m.textInput.Update(msg)
@@ -144,7 +179,33 @@ func (m *CreateModel) updateName(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (m *CreateModel) updateFieldName(msg tea.KeyMsg) tea.Cmd {
+	fields := m.currentFields()
+	numFields := len(*fields)
+
 	switch msg.String() {
+	case "up", "k":
+		if numFields > 0 {
+			m.fieldCursor = (m.fieldCursor - 1 + numFields) % numFields
+			return nil
+		}
+	case "down", "j":
+		if numFields > 0 {
+			m.fieldCursor = (m.fieldCursor + 1) % numFields
+			return nil
+		}
+	case "e":
+		if numFields > 0 && m.editingIndex < 0 {
+			return m.editSelectedField()
+		}
+	case "x":
+		if numFields > 0 && m.editingIndex < 0 {
+			m.skipNextKey = true
+			*fields = append((*fields)[:m.fieldCursor], (*fields)[m.fieldCursor+1:]...)
+			if m.fieldCursor >= len(*fields) && len(*fields) > 0 {
+				m.fieldCursor = len(*fields) - 1
+			}
+			return nil
+		}
 	case "enter":
 		name := strings.TrimSpace(m.textInput.Value())
 		if name == "" {
@@ -156,16 +217,48 @@ func (m *CreateModel) updateFieldName(msg tea.KeyMsg) tea.Cmd {
 			return nil
 		}
 		m.currentFieldName = name
-		m.textInput.SetValue(name)
 		m.step = createStepFieldType
 		m.typeCursor = 0
+
+		if m.editingIndex >= 0 {
+			f := (*fields)[m.editingIndex]
+			for i, opt := range typeOptions {
+				if opt == f.Type {
+					m.typeCursor = i
+					break
+				}
+			}
+			if f.Enum != nil {
+				m.currentEnumVariants = f.Enum.Variants
+			}
+		}
+
 	case "esc":
+		if m.editingIndex >= 0 {
+			m.editingIndex = -1
+			m.textInput.SetValue("")
+			return nil
+		}
 		if len(m.fieldStack) > 0 {
 			m.fieldStack = m.fieldStack[:len(m.fieldStack)-1]
+			m.fieldCursor = 0
 			return nil
 		}
 		m.done = true
 	}
+	return nil
+}
+
+func (m *CreateModel) editSelectedField() tea.Cmd {
+	fields := m.currentFields()
+	if m.fieldCursor >= len(*fields) {
+		return nil
+	}
+
+	f := (*fields)[m.fieldCursor]
+	m.editingIndex = m.fieldCursor
+	m.skipNextKey = true
+	m.textInput.SetValue(f.Name)
 	return nil
 }
 
@@ -186,7 +279,10 @@ func (m *CreateModel) handleEmptyFieldName() tea.Cmd {
 
 func (m *CreateModel) isDuplicateField(name string) bool {
 	fields := m.currentFields()
-	for _, f := range *fields {
+	for i, f := range *fields {
+		if i == m.editingIndex {
+			continue
+		}
 		if f.Name == name {
 			return true
 		}
@@ -230,20 +326,38 @@ func (m *CreateModel) handleSelectFieldType() tea.Cmd {
 		return nil
 	}
 
-	if selected == "struct" {
-		f := &model.Field{Name: fieldName, Type: "struct"}
-		fields := m.currentFields()
+	fields := m.currentFields()
+	if m.editingIndex >= 0 {
+		f := (*fields)[m.editingIndex]
+		f.Name = fieldName
+		f.Type = selected
+		if selected != "struct" {
+			f.Children = nil
+		}
+		if selected == "struct" {
+			m.fieldStack = append(m.fieldStack, fieldContext{parentField: f, fieldName: fieldName})
+			m.step = createStepFieldName
+			m.textInput.SetValue("")
+			m.textInput.Placeholder = "field_name (空でstruct終了)"
+			m.editingIndex = -1
+			return nil
+		}
+		m.editingIndex = -1
+	} else {
+		if selected == "struct" {
+			f := &model.Field{Name: fieldName, Type: "struct"}
+			*fields = append(*fields, f)
+			m.fieldStack = append(m.fieldStack, fieldContext{parentField: f, fieldName: fieldName})
+			m.step = createStepFieldName
+			m.textInput.SetValue("")
+			m.textInput.Placeholder = "field_name (空でstruct終了)"
+			return nil
+		}
+
+		f := &model.Field{Name: fieldName, Type: selected}
 		*fields = append(*fields, f)
-		m.fieldStack = append(m.fieldStack, fieldContext{parentField: f, fieldName: fieldName})
-		m.step = createStepFieldName
-		m.textInput.SetValue("")
-		m.textInput.Placeholder = "field_name (空でstruct終了)"
-		return nil
 	}
 
-	f := &model.Field{Name: fieldName, Type: selected}
-	fields := m.currentFields()
-	*fields = append(*fields, f)
 	m.step = createStepFieldName
 	m.textInput.SetValue("")
 	m.textInput.Placeholder = "field_name (空でフィールド追加終了)"
@@ -272,13 +386,24 @@ func (m *CreateModel) handleFinishEnum() tea.Cmd {
 		m.errMsg = "少なくとも1つのvariantが必要です"
 		return nil
 	}
-	f := &model.Field{
-		Name: m.currentFieldName,
-		Type: "enum",
-		Enum: &model.EnumDef{Variants: m.currentEnumVariants},
-	}
+
 	fields := m.currentFields()
-	*fields = append(*fields, f)
+	if m.editingIndex >= 0 {
+		f := (*fields)[m.editingIndex]
+		f.Name = m.currentFieldName
+		f.Type = "enum"
+		f.Enum = &model.EnumDef{Variants: m.currentEnumVariants}
+		f.Children = nil
+		m.editingIndex = -1
+	} else {
+		f := &model.Field{
+			Name: m.currentFieldName,
+			Type: "enum",
+			Enum: &model.EnumDef{Variants: m.currentEnumVariants},
+		}
+		*fields = append(*fields, f)
+	}
+
 	m.step = createStepFieldName
 	m.textInput.SetValue("")
 	m.textInput.Placeholder = "field_name (空でフィールド追加終了)"

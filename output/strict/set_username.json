@@ -2,19 +2,19 @@
   "name": "set_username",
   "packet_id": 2,
   "packet_id_hex": "0x0002",
-  "total_bits": 64,
-  "total_bytes": 8,
+  "total_bits": 0,
+  "total_bytes": 0,
   "reliable": true,
   "ordered": true,
   "fields": [
     {
       "name": "name",
-      "type": "u64",
-      "bits": 64,
+      "type": "string",
+      "bits": 0,
       "bit_offset": 0,
-      "bit_range": "bits 0..63",
-      "min": "0",
-      "max": "18446744073709551615"
+      "bit_range": "N/A",
+      "min": "N/A",
+      "max": "N/A"
     }
   ]
 }

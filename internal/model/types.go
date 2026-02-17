@@ -12,18 +12,19 @@ type TypeInfo struct {
 }
 
 var KnownTypes = map[string]TypeInfo{
-	"u8":   {Name: "u8", Bits: 8, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "255"},
-	"u16":  {Name: "u16", Bits: 16, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "65535"},
-	"u32":  {Name: "u32", Bits: 32, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "4294967295"},
-	"u64":  {Name: "u64", Bits: 64, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "18446744073709551615"},
-	"i8":   {Name: "i8", Bits: 8, Signed: true, IsFloat: false, MinValue: "-128", MaxValue: "127"},
-	"i16":  {Name: "i16", Bits: 16, Signed: true, IsFloat: false, MinValue: "-32768", MaxValue: "32767"},
-	"i32":  {Name: "i32", Bits: 32, Signed: true, IsFloat: false, MinValue: "-2147483648", MaxValue: "2147483647"},
-	"i64":  {Name: "i64", Bits: 64, Signed: true, IsFloat: false, MinValue: "-9223372036854775808", MaxValue: "9223372036854775807"},
-	"f16":  {Name: "f16", Bits: 16, Signed: true, IsFloat: true, MinValue: "-65504.0", MaxValue: "65504.0"},
-	"f32":  {Name: "f32", Bits: 32, Signed: true, IsFloat: true, MinValue: "-3.4028235e+38", MaxValue: "3.4028235e+38"},
-	"f64":  {Name: "f64", Bits: 64, Signed: true, IsFloat: true, MinValue: "-1.7976931348623157e+308", MaxValue: "1.7976931348623157e+308"},
-	"bool": {Name: "bool", Bits: 1, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "1"},
+	"u8":     {Name: "u8", Bits: 8, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "255"},
+	"u16":    {Name: "u16", Bits: 16, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "65535"},
+	"u32":    {Name: "u32", Bits: 32, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "4294967295"},
+	"u64":    {Name: "u64", Bits: 64, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "18446744073709551615"},
+	"i8":     {Name: "i8", Bits: 8, Signed: true, IsFloat: false, MinValue: "-128", MaxValue: "127"},
+	"i16":    {Name: "i16", Bits: 16, Signed: true, IsFloat: false, MinValue: "-32768", MaxValue: "32767"},
+	"i32":    {Name: "i32", Bits: 32, Signed: true, IsFloat: false, MinValue: "-2147483648", MaxValue: "2147483647"},
+	"i64":    {Name: "i64", Bits: 64, Signed: true, IsFloat: false, MinValue: "-9223372036854775808", MaxValue: "9223372036854775807"},
+	"f16":    {Name: "f16", Bits: 16, Signed: true, IsFloat: true, MinValue: "-65504.0", MaxValue: "65504.0"},
+	"f32":    {Name: "f32", Bits: 32, Signed: true, IsFloat: true, MinValue: "-3.4028235e+38", MaxValue: "3.4028235e+38"},
+	"f64":    {Name: "f64", Bits: 64, Signed: true, IsFloat: true, MinValue: "-1.7976931348623157e+308", MaxValue: "1.7976931348623157e+308"},
+	"bool":   {Name: "bool", Bits: 1, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "1"},
+	"string": {Name: "string", Bits: 0, Signed: false, IsFloat: false, MinValue: "N/A", MaxValue: "N/A"},
 }
 
 type Field struct {

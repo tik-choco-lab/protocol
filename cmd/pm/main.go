@@ -92,6 +92,8 @@ Usage:
 
 TUI Keybindings:
   ↑/↓ or k/j              Navigate protocol list
+  a                        Add new protocol
+  e                        Edit selected protocol
   s                        View selected protocol (simple format)
   d                        View selected protocol (strict/detailed format)
   S                        View all protocols (simple format)

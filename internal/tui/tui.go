@@ -190,6 +190,12 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cm := NewCreateModel(m.protocolsDir)
 		m.createModel = &cm
 		m.mode = viewCreate
+	case "e":
+		if len(m.protocols) > 0 {
+			cm := NewEditModel(m.protocols[m.cursor], m.protocolsDir)
+			m.createModel = &cm
+			m.mode = viewCreate
+		}
 	case "x":
 		if len(m.protocols) > 0 {
 			m.mode = viewDelete
