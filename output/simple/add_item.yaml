@@ -1,0 +1,6 @@
+name: add_item
+fields:
+    count: u16
+    item_id: u32
+reliable: true
+ordered: true

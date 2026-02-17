@@ -1,0 +1,5 @@
+name: base
+fields:
+    target_id: u32
+reliable: true
+ordered: true

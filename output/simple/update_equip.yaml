@@ -1,0 +1,11 @@
+name: update_equip
+fields:
+    action:
+        enum:
+            - clear
+            - set
+    count: u16
+    item_id: u32
+    slot_id: u16
+reliable: true
+ordered: true

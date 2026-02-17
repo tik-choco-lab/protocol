@@ -1,0 +1,13 @@
+name: update_position
+fields:
+    position:
+        x: f32
+        "y": f32
+        z: f32
+    rotation:
+        w: f16
+        x: f16
+        "y": f16
+        z: f16
+reliable: false
+ordered: false

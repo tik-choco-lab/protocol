@@ -10,6 +10,5 @@ bin/
 logs/
 .env
 config.json
-*.yaml
 job.json
 *.db
