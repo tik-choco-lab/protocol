@@ -25,6 +25,7 @@ var KnownTypes = map[string]TypeInfo{
 	"f64":    {Name: "f64", Bits: 64, Signed: true, IsFloat: true, MinValue: "-1.7976931348623157e+308", MaxValue: "1.7976931348623157e+308"},
 	"bool":   {Name: "bool", Bits: 1, Signed: false, IsFloat: false, MinValue: "0", MaxValue: "1"},
 	"string": {Name: "string", Bits: 0, Signed: false, IsFloat: false, MinValue: "N/A", MaxValue: "N/A"},
+	"byte[]": {Name: "byte[]", Bits: 0, Signed: false, IsFloat: false, MinValue: "N/A", MaxValue: "N/A"},
 }
 
 type Field struct {

@@ -10,7 +10,7 @@
       "total_bytes": 6
     },
     {
-      "name": "set_username",
+      "name": "get_user",
       "packet_id": 2,
       "packet_id_hex": "0x0002",
       "reliable": true,
@@ -19,9 +19,18 @@
       "total_bytes": 0
     },
     {
-      "name": "update_equip",
+      "name": "set_username",
       "packet_id": 3,
       "packet_id_hex": "0x0003",
+      "reliable": true,
+      "ordered": true,
+      "total_bits": 0,
+      "total_bytes": 0
+    },
+    {
+      "name": "update_equip",
+      "packet_id": 4,
+      "packet_id_hex": "0x0004",
       "reliable": true,
       "ordered": true,
       "total_bits": 65,
@@ -29,8 +38,8 @@
     },
     {
       "name": "update_position",
-      "packet_id": 4,
-      "packet_id_hex": "0x0004",
+      "packet_id": 5,
+      "packet_id_hex": "0x0005",
       "reliable": false,
       "ordered": false,
       "total_bits": 160,

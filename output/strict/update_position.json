@@ -1,7 +1,7 @@
 {
   "name": "update_position",
-  "packet_id": 4,
-  "packet_id_hex": "0x0004",
+  "packet_id": 5,
+  "packet_id_hex": "0x0005",
   "total_bits": 160,
   "total_bytes": 20,
   "reliable": false,

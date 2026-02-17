@@ -1,7 +1,7 @@
 {
   "name": "update_equip",
-  "packet_id": 3,
-  "packet_id_hex": "0x0003",
+  "packet_id": 4,
+  "packet_id_hex": "0x0004",
   "total_bits": 65,
   "total_bytes": 9,
   "reliable": true,

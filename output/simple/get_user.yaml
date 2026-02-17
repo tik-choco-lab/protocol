@@ -1,0 +1,5 @@
+name: get_user
+struct:
+    users: byte[]
+reliable: true
+ordered: true

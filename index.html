@@ -553,7 +553,7 @@
             }
 
             try {
-                const data = await fetchJSON('./output/strict/_index.json');
+                const data = await fetchJSON('./output/strict/manifest.json');
                 if (data && data.protocols) {
                     protocols = data.protocols;
                 } else {
@@ -665,7 +665,7 @@
                                     <span class="spec-value">${p.ordered ? 'Strictly Ordered' : 'Asynchronous'}</span>
                                 </div>
                                 <div style="margin-top: 2rem">
-                                    <button class="action-btn" style="width: 100%; gap: 0.5rem; font-size: 0.8rem; font-weight: 600;" onclick="copy('${window.location.origin}/strict/${p.name}.json')">
+                                    <button class="action-btn" style="width: 100%; gap: 0.5rem; font-size: 0.8rem; font-weight: 600;" onclick="copy('${window.location.origin}/output/strict/${p.name}.json')">
                                         <i data-lucide="link" size="14"></i> Copy Spec Link
                                     </button>
                                 </div>

@@ -89,7 +89,7 @@ func Generate(protocols []*model.Protocol, outDir string) error {
 		}
 	}
 	idxOut, _ := json.MarshalIndent(index, "", "  ")
-	return os.WriteFile(filepath.Join(outDir, "_index.json"), idxOut, permFile)
+	return os.WriteFile(filepath.Join(outDir, "manifest.json"), idxOut, permFile)
 }
 
 func buildJSON(p *model.Protocol) ProtocolJSON {

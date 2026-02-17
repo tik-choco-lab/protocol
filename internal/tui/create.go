@@ -35,6 +35,7 @@ var typeOptions = []string{
 	"f16", "f32", "f64",
 	"bool",
 	"string",
+	"byte[]",
 	"── special ──",
 	"struct",
 	"enum",
