@@ -553,7 +553,7 @@
             }
 
             try {
-                const response = await fetch('./strict/');
+                const response = await fetch('./output/strict/');
                 if (!response.ok) throw new Error("Could not list directory");
 
                 const html = await response.text();
@@ -566,7 +566,7 @@
                 if (links.length === 0) throw new Error("No protocols found");
 
                 const discovered = await Promise.all(links.map(async (filename) => {
-                    const data = await fetchJSON(`./strict/${filename}`);
+                    const data = await fetchJSON(`./output/strict/${filename}`);
                     return data ? {
                         name: data.name,
                         packet_id: data.packet_id,
@@ -614,7 +614,7 @@
             tabs.forEach(t => t.classList.toggle('active', t.dataset.type === type));
             pre.innerHTML = `<span style="color: var(--text-dim)">Loading ${type.toUpperCase()} definition...</span>`;
 
-            const path = type === 'json' ? `./strict/${name}.json` : `./simple/${name}.yaml`;
+            const path = type === 'json' ? `./output/strict/${name}.json` : `./output/simple/${name}.yaml`;
             const content = await fetchText(path);
 
             if (type === 'json' && !content.includes('restricted')) {
@@ -654,7 +654,7 @@
                             <button class="action-btn" title="Copy Identifier" onclick="copy('${p.name}', event)">
                                 <i data-lucide="hash" size="18"></i>
                             </button>
-                            <button class="action-btn" title="Open Source" onclick="window.open('./strict/${p.name}.json', '_blank'); event.stopPropagation();">
+                            <button class="action-btn" title="Open Source" onclick="window.open('./output/strict/${p.name}.json', '_blank'); event.stopPropagation();">
                                 <i data-lucide="external-link" size="18"></i>
                             </button>
                         </div>
