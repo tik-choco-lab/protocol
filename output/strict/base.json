@@ -1,0 +1,20 @@
+{
+  "name": "base",
+  "packet_id": 2,
+  "packet_id_hex": "0x0002",
+  "total_bits": 32,
+  "total_bytes": 4,
+  "reliable": true,
+  "ordered": true,
+  "fields": [
+    {
+      "name": "target_id",
+      "type": "u32",
+      "bits": 32,
+      "bit_offset": 0,
+      "bit_range": "bits 0..31",
+      "min": "0",
+      "max": "4294967295"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "name": "update_equip",
+  "packet_id": 6,
+  "packet_id_hex": "0x0006",
+  "total_bits": 65,
+  "total_bytes": 9,
+  "reliable": true,
+  "ordered": true,
+  "fields": [
+    {
+      "name": "action",
+      "type": "enum",
+      "bits": 1,
+      "bit_offset": 0,
+      "bit_range": "bit 0",
+      "variants": [
+        {
+          "value": 0,
+          "name": "clear"
+        },
+        {
+          "value": 1,
+          "name": "set"
+        }
+      ]
+    },
+    {
+      "name": "count",
+      "type": "u16",
+      "bits": 16,
+      "bit_offset": 1,
+      "bit_range": "bits 1..16",
+      "min": "0",
+      "max": "65535"
+    },
+    {
+      "name": "item_id",
+      "type": "u32",
+      "bits": 32,
+      "bit_offset": 17,
+      "bit_range": "bits 17..48",
+      "min": "0",
+      "max": "4294967295"
+    },
+    {
+      "name": "slot_id",
+      "type": "u16",
+      "bits": 16,
+      "bit_offset": 49,
+      "bit_range": "bits 49..64",
+      "min": "0",
+      "max": "65535"
+    }
+  ]
+}

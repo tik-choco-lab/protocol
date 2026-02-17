@@ -1,0 +1,14 @@
+{
+  "protocols": [
+    {
+      "name": "add_item",
+      "packet_id": 0,
+      "packet_id_hex": "0x0000",
+      "total_bits": 0,
+      "total_bytes": 0,
+      "reliable": true,
+      "ordered": true
+    }
+  ],
+  "total": 1
+}

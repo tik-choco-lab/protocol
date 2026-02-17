@@ -1,0 +1,92 @@
+{
+  "name": "update_position",
+  "packet_id": 7,
+  "packet_id_hex": "0x0007",
+  "total_bits": 160,
+  "total_bytes": 20,
+  "reliable": false,
+  "ordered": false,
+  "fields": [
+    {
+      "name": "position",
+      "type": "struct",
+      "bits": 96,
+      "bit_offset": 0,
+      "bit_range": "bits 0..95",
+      "children": [
+        {
+          "name": "x",
+          "type": "f32",
+          "bits": 32,
+          "bit_offset": 0,
+          "bit_range": "bits 0..31",
+          "min": "-3.4028235e+38",
+          "max": "3.4028235e+38"
+        },
+        {
+          "name": "y",
+          "type": "f32",
+          "bits": 32,
+          "bit_offset": 32,
+          "bit_range": "bits 32..63",
+          "min": "-3.4028235e+38",
+          "max": "3.4028235e+38"
+        },
+        {
+          "name": "z",
+          "type": "f32",
+          "bits": 32,
+          "bit_offset": 64,
+          "bit_range": "bits 64..95",
+          "min": "-3.4028235e+38",
+          "max": "3.4028235e+38"
+        }
+      ]
+    },
+    {
+      "name": "rotation",
+      "type": "struct",
+      "bits": 64,
+      "bit_offset": 96,
+      "bit_range": "bits 96..159",
+      "children": [
+        {
+          "name": "w",
+          "type": "f16",
+          "bits": 16,
+          "bit_offset": 96,
+          "bit_range": "bits 96..111",
+          "min": "-65504.0",
+          "max": "65504.0"
+        },
+        {
+          "name": "x",
+          "type": "f16",
+          "bits": 16,
+          "bit_offset": 112,
+          "bit_range": "bits 112..127",
+          "min": "-65504.0",
+          "max": "65504.0"
+        },
+        {
+          "name": "y",
+          "type": "f16",
+          "bits": 16,
+          "bit_offset": 128,
+          "bit_range": "bits 128..143",
+          "min": "-65504.0",
+          "max": "65504.0"
+        },
+        {
+          "name": "z",
+          "type": "f16",
+          "bits": 16,
+          "bit_offset": 144,
+          "bit_range": "bits 144..159",
+          "min": "-65504.0",
+          "max": "65504.0"
+        }
+      ]
+    }
+  ]
+}
