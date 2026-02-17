@@ -609,6 +609,10 @@
             }
         }
 
+        function getAbsoluteUrl(path) {
+            return new URL(path, window.location.href).href;
+        }
+
         function render(filter = '') {
             list.innerHTML = '';
             const filtered = protocols.filter(p =>
@@ -621,6 +625,8 @@
             filtered.forEach(p => {
                 const card = document.createElement('div');
                 card.className = 'protocol-card';
+
+                const fullUrl = getAbsoluteUrl(`./output/strict/${p.name}.json`);
 
                 card.innerHTML = `
                     <div class="protocol-header" onclick="toggleExpand(this.parentElement, '${p.name}')">
@@ -665,7 +671,7 @@
                                     <span class="spec-value">${p.ordered ? 'Strictly Ordered' : 'Asynchronous'}</span>
                                 </div>
                                 <div style="margin-top: 2rem">
-                                    <button class="action-btn" style="width: 100%; gap: 0.5rem; font-size: 0.8rem; font-weight: 600;" onclick="copy(new URL('./output/strict/${p.name}.json', window.location.href).href)">
+                                    <button class="action-btn" style="width: 100%; gap: 0.5rem; font-size: 0.8rem; font-weight: 600;" onclick="copy('${fullUrl}')">
                                         <i data-lucide="link" size="14"></i> Copy Spec Link
                                     </button>
                                 </div>
