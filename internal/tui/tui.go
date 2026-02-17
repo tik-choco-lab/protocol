@@ -148,10 +148,14 @@ func (m Model) handleReloadMsg(msg ReloadMsg) (tea.Model, tea.Cmd) {
 		m.genMsg = fmt.Sprintf("❌ リロードエラー: %v", msg.Err)
 	} else {
 		m.protocols = msg.Protocols
-		m.genMsg = fmt.Sprintf("✅ プロトコルを出力しました (%d 件)", len(msg.Protocols))
+		m.genMsg = fmt.Sprintf("✅ プロトコルを更新しました (%d 件)", len(msg.Protocols))
 		if m.cursor >= len(m.protocols) {
 			m.cursor = len(m.protocols) - 1
 		}
+		if m.cursor < 0 && len(m.protocols) > 0 {
+			m.cursor = 0
+		}
+		return m, m.generateAll()
 	}
 	m.mode = viewList
 	m.createModel = nil

@@ -553,35 +553,20 @@
             }
 
             try {
-                const response = await fetch('./output/strict/');
-                if (!response.ok) throw new Error("Could not list directory");
-
-                const html = await response.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const links = Array.from(doc.querySelectorAll('a'))
-                    .map(a => a.getAttribute('href'))
-                    .filter(href => href && href.endsWith('.json') && !href.startsWith('_'));
-
-                if (links.length === 0) throw new Error("No protocols found");
-
-                const discovered = await Promise.all(links.map(async (filename) => {
-                    const data = await fetchJSON(`./output/strict/${filename}`);
-                    return data ? {
-                        name: data.name,
-                        packet_id: data.packet_id,
-                        packet_id_hex: data.packet_id_hex,
-                        reliable: data.reliable,
-                        ordered: data.ordered,
-                        total_bits: data.total_bits,
-                        total_bytes: data.total_bytes
-                    } : null;
-                }));
-
-                protocols = discovered.filter(p => p !== null).sort((a, b) => a.packet_id - b.packet_id);
-
+                const data = await fetchJSON('./output/strict/_index.json');
+                if (data && data.protocols) {
+                    protocols = data.protocols;
+                } else {
+                    throw new Error("Index not found");
+                }
             } catch (e) {
-                console.warn("Discovery failed, using fallback:", e);
+                console.warn("Manifest not found, using fallback:", e);
+                protocols = [
+                    { name: "add_item", packet_id: 1, packet_id_hex: "0x0001", reliable: true, ordered: true },
+                    { name: "base", packet_id: 2, packet_id_hex: "0x0002", reliable: true, ordered: true },
+                    { name: "update_equip", packet_id: 3, packet_id_hex: "0x0003", reliable: true, ordered: true },
+                    { name: "update_position", packet_id: 4, packet_id_hex: "0x0004", reliable: false, ordered: false }
+                ];
             }
 
             loading.style.display = 'none';

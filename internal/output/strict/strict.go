@@ -43,6 +43,20 @@ type EnumValue struct {
 	Name  string `json:"name"`
 }
 
+type IndexJSON struct {
+	Protocols []ProtocolSummary `json:"protocols"`
+}
+
+type ProtocolSummary struct {
+	Name       string `json:"name"`
+	PacketID   uint16 `json:"packet_id"`
+	PacketHex  string `json:"packet_id_hex"`
+	Reliable   bool   `json:"reliable"`
+	Ordered    bool   `json:"ordered"`
+	TotalBits  int    `json:"total_bits"`
+	TotalBytes int    `json:"total_bytes"`
+}
+
 func Generate(protocols []*model.Protocol, outDir string) error {
 	if err := os.MkdirAll(outDir, permDir); err != nil {
 		return fmt.Errorf("failed to create output dir: %w", err)
@@ -60,7 +74,22 @@ func Generate(protocols []*model.Protocol, outDir string) error {
 		}
 	}
 
-	return nil
+	index := IndexJSON{
+		Protocols: make([]ProtocolSummary, len(protocols)),
+	}
+	for i, p := range protocols {
+		index.Protocols[i] = ProtocolSummary{
+			Name:       p.Name,
+			PacketID:   p.PacketID,
+			PacketHex:  fmt.Sprintf("0x%04X", p.PacketID),
+			Reliable:   p.Reliable,
+			Ordered:    p.Ordered,
+			TotalBits:  p.TotalBits,
+			TotalBytes: p.TotalBytes(),
+		}
+	}
+	idxOut, _ := json.MarshalIndent(index, "", "  ")
+	return os.WriteFile(filepath.Join(outDir, "_index.json"), idxOut, permFile)
 }
 
 func buildJSON(p *model.Protocol) ProtocolJSON {

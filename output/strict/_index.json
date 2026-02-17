@@ -1,0 +1,40 @@
+{
+  "protocols": [
+    {
+      "name": "add_item",
+      "packet_id": 1,
+      "packet_id_hex": "0x0001",
+      "reliable": true,
+      "ordered": true,
+      "total_bits": 48,
+      "total_bytes": 6
+    },
+    {
+      "name": "set_username",
+      "packet_id": 2,
+      "packet_id_hex": "0x0002",
+      "reliable": true,
+      "ordered": true,
+      "total_bits": 64,
+      "total_bytes": 8
+    },
+    {
+      "name": "update_equip",
+      "packet_id": 3,
+      "packet_id_hex": "0x0003",
+      "reliable": true,
+      "ordered": true,
+      "total_bits": 65,
+      "total_bytes": 9
+    },
+    {
+      "name": "update_position",
+      "packet_id": 4,
+      "packet_id_hex": "0x0004",
+      "reliable": false,
+      "ordered": false,
+      "total_bits": 160,
+      "total_bytes": 20
+    }
+  ]
+}

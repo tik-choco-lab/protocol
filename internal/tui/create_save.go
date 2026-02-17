@@ -2,12 +2,10 @@ package tui
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/tik-choco-lab/protocol/internal/model"
 	"github.com/tik-choco-lab/protocol/internal/output/simple"
-	"github.com/tik-choco-lab/protocol/internal/output/strict"
 )
 
 func (m *CreateModel) save() error {
@@ -20,13 +18,9 @@ func (m *CreateModel) save() error {
 	p.ResolveBits()
 
 	simpleDir := m.protocolsDir
-	strictDir := filepath.Join(filepath.Dir(m.protocolsDir), "strict")
 
 	if err := simple.Generate([]*model.Protocol{p}, simpleDir); err != nil {
-		return fmt.Errorf("simple出力失敗: %w", err)
-	}
-	if err := strict.Generate([]*model.Protocol{p}, strictDir); err != nil {
-		return fmt.Errorf("strict出力失敗: %w", err)
+		return fmt.Errorf("保存失敗: %w", err)
 	}
 
 	return nil
