@@ -2,7 +2,10 @@
 // このファイルは import せず、実装時にコピー&参照すること。
 // 出典: docs/keys/tc-storage.md
 
-/** キー: "tc-storage-did-identity-v1" ("tc-chat-did-identity-v1" と型は同じだが別値) */
+/**
+ * キー: "tc-storage-did-identity-v1" (ローカルミラー。tc-storage はこれを正として
+ * "tc-shared-did-identity-cid-v1" 経由で他アプリと収束する。docs/did-identity.md 参照)
+ */
 export interface PublicDidIdentity {
   did: string;
   method: "did:key";
@@ -10,6 +13,9 @@ export interface PublicDidIdentity {
   publicKeyMultibase: string;
   createdAt: string;
 }
+
+/** キー: "tc-shared-did-identity-cid-v1" (アプリ名プレフィックスなしの共有キー。値は CID) */
+export type SharedDidIdentityCid = string;
 
 /** キー: "tc-storage-settings-v1" */
 export interface AppSettings {

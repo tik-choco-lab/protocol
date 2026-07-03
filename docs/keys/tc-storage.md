@@ -7,7 +7,8 @@ mistlib 使用: あり(`tc-storage/src/storage/mistStorage.ts` ほか、`storage
 | `tc-storage-settings-v1` | `AppSettings`(下記) | tc-storage | tc-storage | tc-storage/src/storage/localSettings.ts:13 |
 | `tc-storage-room-id-v1` | `string` | tc-storage | tc-storage | tc-storage/src/storage/localSettings.ts:14 |
 | `tc-storage-node-id-v1` | `string` | tc-storage | tc-storage, **tc-chat (クロスアプリ読み取り、テストで存在確認のみ)** | tc-storage/src/storage/localSettings.ts:37,79-82 |
-| `tc-storage-did-identity-v1` | DID identity レコード(下記) | tc-storage | tc-storage | tc-storage/src/crypto/didIdentity.ts:17 |
+| `tc-storage-did-identity-v1` | DID identity レコード(下記)、ローカル優先のミラーキー | tc-storage | tc-storage | tc-storage/src/crypto/didIdentity.ts:17 |
+| `tc-shared-did-identity-cid-v1` | `string`(共有 identity レコードの mistlib CID) | tc-storage(ローカルが正の場合に書き戻す), tc-chat, tc-vrm-viewer | tc-storage, tc-chat, tc-vrm-viewer | tc-storage/src/crypto/sharedDidIdentity.ts:32。詳細は [../did-identity.md](../did-identity.md) |
 | `tc-storage-snapshot-v1` | `StorageSnapshot` | tc-storage | tc-storage | tc-storage/src/storage/localSnapshot.ts:4 |
 | `tc-storage-folder-access-modes-v1` | フォルダアクセスモード `Record<string, mode>` | tc-storage | tc-storage | tc-storage/src/folder/folderAccess.ts:3 |
 | `tc-storage-folder-keys-v1` | フォルダ暗号鍵 `Record<string, string>` | tc-storage | tc-storage | tc-storage/src/crypto/folderKeys.ts:5 |
@@ -49,11 +50,11 @@ type PublicDidIdentity = {
 
 ## 特記事項
 
-- **DID identity 実装の重複**: `tc-storage-did-identity-v1` の Ed25519/did:key
-  暗号処理は `tc-storage/src/crypto/didIdentity.ts` が正典で、`tc-chat` にも verbatim
-  コピーが存在する(`tc-chat/src/crypto/didIdentity.ts` の `identityKey = 'tc-chat-did-identity-v1'`)。
-  **各アプリが自分専用のキーに自分の identity を保存しており、tc-storage と tc-chat の
-  DID は現状 別物**。tc-vrm-viewer は第三の方式("共有CIDポインタ"方式、下記)を採用しており、
-  3つのアプリで DID 永続化の方式が統一されていない。
+- **DID identity は共有キーで統一済み**: `tc-shared-did-identity-cid-v1`(アプリ名なし)を
+  介して tc-storage・tc-chat・tc-vrm-viewer が同一の DID に収束する。Ed25519/did:key の
+  暗号処理自体は `tc-storage/src/crypto/didIdentity.ts` が正典実装で、他アプリは verbatim
+  コピーを持つ。tc-storage だけは起動同期パスの都合でローカルミラー
+  (`tc-storage-did-identity-v1`)を正として共有ストアへ書き戻す非対称なポリシーを取る。
+  詳細な照合ロジックと収束の仕組みは [../did-identity.md](../did-identity.md) を参照。
 - tc-storage は mistlib storage を主データストア(ファイル本文の CID 保存)として使い、
   localStorage は設定・メタデータ・鍵材料に限定している。

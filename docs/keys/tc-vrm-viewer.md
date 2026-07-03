@@ -13,17 +13,18 @@ mistlib 使用: あり。tc-vrm-viewer は他アプリと異なり、**identity 
 ## 設計メモ(ソースコードのコメントより)
 
 - `tc-shared-did-identity-cid-v1` は**意図的にアプリ名プレフィックスを付けない共有キー**。
-  同一オリジンにデプロイされた全 tc-* アプリがこのキーを使えば同じ DID に収束する設計だが、
-  現状これを実装しているのは tc-vrm-viewer のみ。tc-storage・tc-chat は各々の
-  `tc-<app>-did-identity-v1` に生の identity を保存する別方式のままで、**3アプリ間で
-  DID 永続化方式が統一されていない**([tc-storage.md](tc-storage.md) の特記事項も参照)。
+  tc-vrm-viewer がこの方式の参照実装(canonical shared implementation)であり、
+  tc-storage・tc-chat も同じ共有キーを介して収束するよう実装済み。3アプリの照合ロジックの
+  優先順位の違い(tc-storage のみローカル優先)を含む統一仕様は
+  [../did-identity.md](../did-identity.md) を参照。
 - 初回ロード時、mistlib storage に identity が無ければ、このアプリの旧キー→他の
-  既知の tc-* キーの順にフォールバックしてマイグレーションを試みる(ソースコメントより。
-  実装詳細は `tc-vrm-viewer/src/profile/didIdentity.ts` 参照)。
+  既知の tc-* キー(`tc-storage-did-identity-v1`, `tc-chat-did-identity-v1`)の順に
+  フォールバックしてマイグレーションを試みる(`legacyLocalStorageKeys`、
+  `tc-vrm-viewer/src/profile/didIdentity.ts:42`)。
 - Ed25519/did:key の暗号処理自体は tc-storage の実装を verbatim コピーしたもの
   (ファイル冒頭コメントに明記)。
 
 ## 特記事項
 
-- DID 永続化方式の統一(共有CIDポインタ方式への一本化 or 現状維持の明文化)は
-  今後の課題として `docs/conventions.md` にも記載。
+- DID 永続化の統一仕様(共有キー方式、優先順位ポリシー、収束の仕組み)は
+  [../did-identity.md](../did-identity.md) にまとめている。

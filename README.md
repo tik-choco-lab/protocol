@@ -48,4 +48,5 @@ tc-protocol はあくまで**仕様ドキュメントと参照用の型定義**�
 
 - [docs/keys/](docs/keys/) : アプリごとの localStorage キーカタログ
 - [docs/conventions.md](docs/conventions.md) : 命名規約・スキーマ進化ルール・クロスアプリ読み取りの原則
+- [docs/did-identity.md](docs/did-identity.md) : tc-storage/tc-chat/tc-vrm-viewer が共有する DID identity の統一仕様
 - [types/](types/) : 各アプリの値スキーマの TypeScript 型定義(参照用)
