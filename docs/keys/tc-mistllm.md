@@ -13,3 +13,5 @@ grep では `storage_add`/`storage_get` の直接呼び出しは確認できず�
 
 - キー命名は `tc-mistllm:<name>` (コロン区切り、tc-note/tc-chat と同系統)。
 - 他アプリからの読み取りは確認されなかった(自己完結型)。
+- P2P ネットワーク越しの JSON ワイヤプロトコル(localStorage とは別レイヤー)の仕様は
+  [docs/mistllm-wire.md](../mistllm-wire.md) を参照。
