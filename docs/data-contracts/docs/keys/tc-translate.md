@@ -13,6 +13,7 @@ mistlib 使用: **なし**(grep で `mistlib`/`storage_add`/`storage_get`/OPFS �
 | `tc-translate-target-language-v1` | `string`(言語コード) | tc-translate | tc-translate | tc-translate/src/constants.ts:9; src/lib/storage.ts:109-114 |
 | `tc-translate-native-language-v1` | `string`(言語コード) | tc-translate | tc-translate | tc-translate/src/constants.ts:10; src/lib/storage.ts:118-123 |
 | `tc-translate-mode-v1` | `string`(動作モード) | tc-translate | tc-translate | tc-translate/src/constants.ts:11; src/lib/storage.ts:127-132 |
+| `tc-translate-mistllm-node-id-v1` | `string`(UUID) | tc-translate | tc-translate | tc-translate/src/lib/mistllm/node.ts:16-34。mistllm(P2P LLMネットワーク)ノードIDで、初回生成後 `localStorage` に永続化される。tc-translate 全体で使う機器識別子とは別物(mistllm 専用) |
 
 ## 特記事項
 

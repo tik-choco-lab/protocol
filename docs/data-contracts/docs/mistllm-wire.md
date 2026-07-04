@@ -39,8 +39,11 @@ consumer(LLM を利用する側)と provider(LLM を提供する側)がピア同
 |---|---|---|---|
 | `v` | `1` | 必須 | プロトコルバージョン |
 | `type` | `"consumer_hello"` \| `"provider_hello"` | 必須 | メッセージ種別 |
+| `models` | `string[]`(`provider_hello` のみ) | 任意 | provider が自身の上流(HTTP API)に `GET /models` した結果を配布する optional 拡張。consumer 側はこれを受けて UI のモデル選択プルダウンに反映する。tc-pdf-viewer 発の拡張(commit `be743f8`)で、`v: 1` のまま追加された optional フィールドの実例 |
 
-追加フィールドなし。
+`consumer_hello` に `models` は存在しない。`provider_hello.models` は非空文字列の配列でなければならず、
+それ以外の型(数値・オブジェクトを含む配列、非文字列要素など)であればこの**フィールドのみ**を
+無視してメッセージ全体は受理する(必須フィールドが揃っていれば `provider_hello` 自体は成立する)。
 
 ### `llm_request`
 
