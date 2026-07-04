@@ -30,3 +30,9 @@ mistlib 使用: あり(`tc-pdf-viewer/src/lib/mistlib/`、`storage_add`/`storage
   両方の形式に対して防御的にパースすること。
 - キー名が汎用的(`mist_*`)でアプリ名を含まないため、他の mistlib 系アプリが将来
   同名キーを使うと衝突するリスクがある。新規キーは `tc-<app>:<name>` 規約に従うこと。
+- `mist_ocr_markdown_index` の書き込み(`saveOcrMarkdownIndex`)は、共有バス
+  (`src/services/sharedBus.js`)のトピック `ocr-markdown-index` へも publish するように
+  なった。`tc-shared-ocr-markdown-index-v1` にインデックス全体のスナップショットを含む
+  レコードを書き、BroadcastChannel で購読者(tc-note)に通知する。詳細は
+  [../SHARED_BUS.md](../SHARED_BUS.md) を参照。`mist_ocr_markdown_index` 自体は
+  後方互換のため引き続き残る。

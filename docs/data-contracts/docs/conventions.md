@@ -43,6 +43,11 @@
   - tc-storage ⇄ tc-chat ⇄ tc-vrm-viewer: DID identity は `tc-shared-did-identity-cid-v1`
     経由で共有される(各アプリのローカルミラーキーは独立だが最終的に同一DIDへ収束する)。
     詳細は [docs/did-identity.md](did-identity.md) 参照。
+  - tc-pdf-viewer → tc-note: OCR Markdown インデックスは `mist_ocr_markdown_index` の直接
+    クロスアプリ読み取りに加え、汎用共有バス `sharedBus`(`tc-shared-<topic>-v1` +
+    BroadcastChannel `tc-shared-bus-v1`)のトピック `ocr-markdown-index` 経由でも共有される。
+    tc-note / tc-storage / tc-pdf-viewer の3アプリに同一契約の `sharedBus` モジュールが
+    vendor コピーされている。詳細は [docs/SHARED_BUS.md](SHARED_BUS.md) 参照。
 
 ## 開発時の注意(再掲)
 

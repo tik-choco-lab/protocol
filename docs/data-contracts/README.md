@@ -50,4 +50,6 @@ tc-protocol はあくまで**仕様ドキュメントと参照用の型定義**�
 - [docs/conventions.md](docs/conventions.md) : 命名規約・スキーマ進化ルール・クロスアプリ読み取りの原則
 - [docs/did-identity.md](docs/did-identity.md) : tc-storage/tc-chat/tc-vrm-viewer が共有する DID identity の統一仕様
 - [docs/mistllm-wire.md](docs/mistllm-wire.md) : tc-mistllm の P2P ワイヤプロトコル(mistlib ルーム上の JSON メッセージ)仕様
+- [docs/SHARED_BUS.md](docs/SHARED_BUS.md) : tc-note/tc-storage/tc-pdf-viewer が使う汎用共有バス
+  (CIDポインタ + BroadcastChannel通知)`sharedBus` の仕様
 - [types/](types/) : 各アプリの値スキーマの TypeScript 型定義(参照用)
