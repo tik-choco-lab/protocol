@@ -60,10 +60,18 @@ export interface MistllmConsumerHelloMsg {
   type: "consumer_hello";
 }
 
+/** Opaque bincode+base64 `mistlib_consensus_core::RaftMessage`; see docs/mistllm-wire.md. */
+export interface MistllmRaftMessageMsg {
+  v: 1;
+  type: "raft_message";
+  payload: string;
+}
+
 export type MistllmProtocolMessage =
   | MistllmLlmRequestMsg
   | MistllmLlmResponseChunkMsg
   | MistllmLlmResponseDoneMsg
   | MistllmLlmErrorMsg
   | MistllmProviderHelloMsg
-  | MistllmConsumerHelloMsg;
+  | MistllmConsumerHelloMsg
+  | MistllmRaftMessageMsg;

@@ -31,6 +31,7 @@ consumer(LLM を利用する側)と provider(LLM を提供する側)がピア同
 | `llm_response_chunk` | provider → consumer | ストリーミング応答の断片(delta) |
 | `llm_response_done` | provider → consumer | ストリーミング応答の完了通知 |
 | `llm_error` | provider → consumer | リクエスト処理中のエラー通知 |
+| `raft_message` | consumer ⇄ consumer | Raftベースのタスクスケジューラー(`--scheduler raft`)間の合意メッセージを運ぶ不透明ペイロード |
 
 ### `consumer_hello` / `provider_hello`
 
@@ -90,6 +91,23 @@ Rust 側の `optional_seq` を参照)。
 | `type` | `"llm_error"` | 必須 | メッセージ種別 |
 | `id` | `string`(非空) | 必須 | 対応する `llm_request.id` |
 | `message` | `string` | 必須 | エラー内容 |
+
+### `raft_message`
+
+| フィールド | 型 | 必須 | 意味 |
+|---|---|---|---|
+| `v` | `1` | 必須 | プロトコルバージョン |
+| `type` | `"raft_message"` | 必須 | メッセージ種別 |
+| `payload` | `string`(非空、base64) | 必須 | `mistlib_consensus_core::RaftMessage` をbincodeでシリアライズしbase64エンコードした不透明バイト列 |
+
+`payload` の中身はこのプロトコル層では一切解釈しない(空文字列のみ拒否する)。デコード・
+実際のRaft状態機械への適用は `--scheduler raft` を有効にしたCLI側(`cli/src/scheduler.rs`)
+のみが行う。mistlib-consensus独自の `MistTransport` は `mistlib-core::L1Transport` を
+前提とするが、tc-mistllmのP2P API(`node.rs`)はそれを実装しないグローバル関数形式のため、
+Raftトラフィックはこの `ProtocolMessage` エンベロープに乗せて既存の送受信経路を流用する。
+
+web版(`tc-mistllm/src/lib/protocol.ts`)は `raft_message` のエンコード/デコードのみ対応し、
+Raft本体のロジック(スケジューラー)は未実装。
 
 ## ストリーミングと seq 並べ替え
 
