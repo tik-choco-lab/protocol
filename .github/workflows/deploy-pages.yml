@@ -1,0 +1,69 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Stage site content
+        run: |
+          mkdir -p _site
+          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./_site
+
+      - name: Deploy to GitHub Pages (attempt 1)
+        id: deployment_1
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before retry (attempt 2)
+        if: steps.deployment_1.outcome == 'failure'
+        run: sleep 20
+
+      - name: Deploy to GitHub Pages (attempt 2)
+        id: deployment_2
+        if: steps.deployment_1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before retry (attempt 3)
+        if: steps.deployment_1.outcome == 'failure' && steps.deployment_2.outcome == 'failure'
+        run: sleep 45
+
+      - name: Deploy to GitHub Pages (attempt 3)
+        id: deployment_3
+        if: steps.deployment_2.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+
+      - name: Expose page URL
+        id: deployment
+        if: always()
+        run: |
+          url="${{ steps.deployment_1.outputs.page_url }}"
+          if [ -z "$url" ]; then url="${{ steps.deployment_2.outputs.page_url }}"; fi
+          if [ -z "$url" ]; then url="${{ steps.deployment_3.outputs.page_url }}"; fi
+          echo "page_url=$url" >> "$GITHUB_OUTPUT"
