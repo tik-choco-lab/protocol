@@ -9,7 +9,8 @@ mistlib 使用: あり(`tc-note/src/lib/mistlib.ts`、`storage_add`/`storage_get
 | `tc-note:node-id` | `string`(mistlib ノードID) | tc-note | tc-note | tc-note/src/lib/mistlib.ts:14,67-70 |
 | `tc-note:llm-settings` | LLM プロバイダ設定(OpenAI API 互換) | tc-note | tc-note | tc-note/src/lib/llmSettings.ts:5 |
 | `tc-note:collab-user` | コラボ用ユーザー情報 | tc-note | tc-note | tc-note/src/hooks/useCollab.ts:13 |
-| `mist_ocr_markdown_index` | `Record<string, string \| { content: string }>`(ファイル名→CID or 本文) | tc-pdf-viewer | **tc-note (読み取り専用)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:10; tc-pdf-viewer/src/services/storage.js |
+| `tc-shared-ocr-markdown-index-v1` | `SharedRecord`(共有バス、[../SHARED_BUS.md](../SHARED_BUS.md)参照) | tc-pdf-viewer | **tc-note (読み取り専用)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts; tc-pdf-viewer/src/services/storage.js |
+| `mist_ocr_markdown_index` | `Record<string, string \| { content: string }>`(ファイル名→CID or 本文) | tc-pdf-viewer | **tc-note (読み取り専用、フォールバック)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:10; tc-pdf-viewer/src/services/storage.js |
 | `mist_translated_markdown_index` | `Record<string, Record<string, string>>`(ファイル名→言語→CID) | tc-pdf-viewer | **tc-note (読み取り専用)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:11; tc-pdf-viewer/src/services/storage.js |
 | `tc-translate-history-v1` | `TranslationHistoryEntry[]` | tc-note (読み取り専用, インポート機能), tc-translate | tc-translate | tc-note/src/lib/importTranslations.ts:9 |
 
@@ -45,3 +46,7 @@ interface Folder {
 - `mist_ocr_markdown_index` / `mist_translated_markdown_index` は tc-pdf-viewer の
   レガシー命名規約(`mist_*`、アプリ名プレフィックスなし)を持つキーを tc-note が
   クロスアプリで読んでいる代表例。
+- `mist_ocr_markdown_index` の読み取りは共有バス(`tc-note/src/lib/sharedBus.ts`)経由に
+  最小移行済み: `readShared("ocr-markdown-index")` を先に試し、レコードが無い/不正な場合に
+  のみ `mist_ocr_markdown_index` を直接読む。`subscribePdfViewerDocumentsChanged`
+  (`importDocument.ts`)で更新通知も購読できる。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)。
