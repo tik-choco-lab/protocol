@@ -53,6 +53,13 @@ export interface MistllmLlmErrorMsg {
 export interface MistllmProviderHelloMsg {
   v: 1;
   type: "provider_hello";
+  /**
+   * Optional tc-pdf-viewer extension (commit be743f8): upstream `GET /models`
+   * result the provider advertises so consumers can populate a model picker.
+   * Non-string-array values are dropped by decode() without rejecting the
+   * whole message; see docs/mistllm-wire.md.
+   */
+  models?: string[];
 }
 
 export interface MistllmConsumerHelloMsg {
