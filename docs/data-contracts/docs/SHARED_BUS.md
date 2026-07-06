@@ -1,6 +1,6 @@
 # 共有バス(sharedBus)仕様
 
-tc-note / tc-storage / tc-pdf-viewer が同一オリジンで動く前提を活かし、「CID ポインタを
+tc-note / tc-storage / tc-pdf-viewer / tc-travel が同一オリジンで動く前提を活かし、「CID ポインタを
 localStorage に置き、BroadcastChannel で変更を通知する」共有バスを提供する仕様。
 `tc-shared-did-identity-cid-v1`([docs/did-identity.md](did-identity.md))で既に使われていた
 「OPFS に実データ → localStorage にCIDポインタ」パターンを、任意のトピックで再利用できる
@@ -36,7 +36,7 @@ interface SharedRecord {
   /** ISO 8601 文字列 */
   updatedAt: string;
   /** 発行元アプリ */
-  from: "tc-note" | "tc-storage" | "tc-pdf-viewer";
+  from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-travel";
 }
 ```
 
@@ -48,10 +48,13 @@ interface SharedBusMessage {
   type: "updated";
   topic: string;
   cid: string;
-  from: "tc-note" | "tc-storage" | "tc-pdf-viewer";
+  from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-travel";
   updatedAt: string;
 }
 ```
+
+`from` への値の追加(アプリ参加)は後方互換な変更として扱う。受信側の型ガードは
+`typeof from === "string"` で検証しており、未知のアプリ名を拒否しない。
 
 受信側は型ガード関数(`isSharedBusMessage`)で形状を検証してから使うこと。
 
@@ -88,6 +91,7 @@ function subscribeShared(topic: string, callback: (record: SharedRecord) => void
 | tc-note | `tc-note/src/lib/sharedBus.ts` | TypeScript |
 | tc-storage | `tc-storage/src/storage/sharedBus.ts` | TypeScript |
 | tc-pdf-viewer | `tc-pdf-viewer/src/services/sharedBus.js` | JavaScript(JSDoc型注釈) |
+| tc-travel | `tc-travel/src/lib/tcstorage/sharedBus.ts` | TypeScript |
 
 3ファイルは `APP_NAME` 定数(vendor 先アプリ名)以外、実装をできる限り同一に保つ。
 編集する場合は3ファイルすべてに反映すること。各ファイル冒頭のヘッダコメントに
@@ -117,6 +121,24 @@ tc-pdf-viewer の OCR Markdown インデックス(レガシーキー `mist_ocr_m
 - **レガシーキーの扱い**: `mist_ocr_markdown_index` / `mist_translated_markdown_index` は
   後方互換のため削除しない。翻訳インデックス(`mist_translated_markdown_index`)は
   今回は共有バスへ移行していない(直接読み取りのまま)。
+
+## 既存トピック: `travel-export`
+
+tc-travel の旅写真を tc-storage のワークスペースへ受け渡すトピック。
+詳細仕様は `tc-travel/docs/INTEGRATION.md` を正とする。
+
+- **書き手**: tc-travel。写真を tc-storage ネイティブ形式(AES-GCM 暗号化
+  FileBundle / FolderBundle、`protocol` 外だが tc-storage `src/storage/domain.ts` が正)で
+  mistlib storage に保存し、FolderBundle の CID を `cid` に載せて publish する。
+- **`meta`**: `{ folderId, folderName, passphrase, fileCount, exportedAt }`。
+  フォルダ鍵(passphrase)を meta で受け渡す。同一オリジン localStorage を信頼境界と
+  する本仕様の方針(署名なし)と同等のリスクモデルであることに注意。
+- **読み手**: tc-storage。起動時 `readShared` + `subscribeShared` で受信し、
+  取込済み CID を `tc-storage-travel-import-cid-v1` に記録して重複取込をスキップ。
+  取込は既存の FolderBundle 受入機構(per-field LWW マージ)を再利用する。
+- **前提**: 両アプリの vendored mistlib-wasm ビルドが同一であること
+  (OPFS ブロックフォーマット互換の保証)。canonical build の更新時は
+  ファミリー全アプリで揃えること。
 
 ## バージョニング方針
 
