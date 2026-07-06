@@ -122,23 +122,49 @@ tc-pdf-viewer の OCR Markdown インデックス(レガシーキー `mist_ocr_m
   後方互換のため削除しない。翻訳インデックス(`mist_translated_markdown_index`)は
   今回は共有バスへ移行していない(直接読み取りのまま)。
 
-## 既存トピック: `travel-export`
+## 設計原則: publish, don't peek
 
-tc-travel の旅写真を tc-storage のワークスペースへ受け渡すトピック。
-詳細仕様は `tc-travel/docs/INTEGRATION.md` を正とする。
+アプリ間で受け渡すデータは必ず共有バストピック(`tc-shared-<topic>-v1`)を経由し、
+**他アプリの `tc-<app>-*` 名前空間キーを直接読み書きしない**。トピック名は
+アプリ名ではなく能力ベース(例: `folder-export`、`drive-index`)で命名し、
+読み手・書き手はどのアプリが相手かに依存しないこと(`from` は表示・デバッグ用)。
+これによりアプリ内部のスキーマ変更が他アプリを壊さない。
 
-- **書き手**: tc-travel。写真を tc-storage ネイティブ形式(AES-GCM 暗号化
-  FileBundle / FolderBundle、`protocol` 外だが tc-storage `src/storage/domain.ts` が正)で
+## 既存トピック: `folder-export`
+
+「暗号化フォルダバンドル」をドライブ実装アプリのワークスペースへ受け渡す汎用トピック。
+バンドル形式は [docs/encrypted-bundle.md](encrypted-bundle.md) を正とする。
+
+- **書き手**: 任意のアプリ(現在は tc-travel が写真アルバムを書く)。バンドルを
   mistlib storage に保存し、FolderBundle の CID を `cid` に載せて publish する。
 - **`meta`**: `{ folderId, folderName, passphrase, fileCount, exportedAt }`。
   フォルダ鍵(passphrase)を meta で受け渡す。同一オリジン localStorage を信頼境界と
   する本仕様の方針(署名なし)と同等のリスクモデルであることに注意。
-- **読み手**: tc-storage。起動時 `readShared` + `subscribeShared` で受信し、
-  取込済み CID を `tc-storage-travel-import-cid-v1` に記録して重複取込をスキップ。
-  取込は既存の FolderBundle 受入機構(per-field LWW マージ)を再利用する。
-- **前提**: 両アプリの vendored mistlib-wasm ビルドが同一であること
+- **読み手**: ドライブ実装アプリ(現在は tc-storage)。起動時 `readShared` +
+  `subscribeShared` で受信し、folderId ごとの取込済み CID マップ
+  (tc-storage は `tc-storage-folder-import-cids-v1`)で重複取込をスキップ。
+  取込は per-field LWW マージなので重複適用も無害。
+- 単一レコードのため複数書き手の同時 publish は「最新の告知」だけが残る。
+  キュー保証はしない(通知3経路+起動時読みで実質カバー)。
+- **前提**: 関係アプリの vendored mistlib-wasm ビルドが同一であること
   (OPFS ブロックフォーマット互換の保証)。canonical build の更新時は
   ファミリー全アプリで揃えること。
+
+## 既存トピック: `drive-index`
+
+ドライブ実装アプリが自ワークスペースのファイル索引を公開するトピック。
+他アプリはこれだけを読んでファイル実体(暗号化 FileBundle)へアクセスでき、
+ドライブアプリの内部キーを覗く必要がなくなる。
+
+- **書き手**: ドライブ実装アプリ(現在は tc-storage)。スナップショット/
+  フォルダ鍵の変化時と起動時に publish(debounce 可)。
+- **`cid`**: `""`(索引は `meta` にインライン — `ocr-markdown-index` と同じ前例)。
+- **`meta`**: `{ version: 1, updatedAt, files: DriveIndexEntry[] }`、
+  `DriveIndexEntry = { id, name, mimeType, size, lastCid, path, passphrase }`。
+  掲載対象は「削除されておらず lastCid と解決可能な復号鍵を両方持つファイル」のみ。
+- **読み手**: 任意のアプリ(現在は tc-travel が .vrm 召喚に使用)。
+- 復号鍵の露出はドライブアプリ自身の鍵保存(同一オリジン localStorage 平文)と
+  同一の信頼境界。
 
 ## バージョニング方針
 
