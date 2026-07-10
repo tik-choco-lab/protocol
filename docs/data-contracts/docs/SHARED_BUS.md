@@ -322,6 +322,56 @@ tc-town のキャラクターロースターを、tc-town に直接依存せず�
   (`tc-storage-folder-import-cids-v1`)を記録して冪等に取り込み、既存の CRDT マージ機構
   (`mergeSnapshots`)でワークスペースへ統合する。
 
+## 既存トピック: `storage-drive-inbox`
+
+tc-note にドロップされたファイルを、tc-storage のドライブへ「ファイルとして」複製するための
+トピック。`translations-inbox` と同様、他アプリのデータが tc-storage のドライブにそのまま
+現れるパターンだが、本文がファイルの生バイト列であるため各アイテムをその場で暗号化して運ぶ点が
+異なる。
+
+- **書き手**: tc-note(`src/lib/storageDriveInbox.ts` の `syncDroppedFileToTcStorage`)。
+  ノートにファイルがドロップされるたびに、本文を暗号化(下記)した上で
+  `publishShared("storage-drive-inbox", "", { items })` を呼ぶ。`cid` は常に `""` 固定
+  (`translations-inbox` と同じ方針)で、各アイテムは mistlib CID を指すポインタとして
+  `meta.items` にインラインで持つ。ローリングリストは直近 `MAX_INBOX_ITEMS`(50件)までで、
+  `translations-inbox` と同じく毎回まるごと再発行する。
+
+  ```ts
+  interface DriveInboxItem {
+    id: string          // 安定ID(UUID)。受け手はこれで重複排除する
+    name: string
+    mimeType: string
+    size: number
+    checksum: string     // 平文バイト列のSHA-256 hex digest
+    cid: string          // 暗号化済みバイト列のmistlib storage_add CID
+    key: string          // Base64。使い捨てのAES-256-GCM鍵材料
+    iv: string           // Base64。96-bit AES-GCM IV
+    addedAt: string      // ISO 8601
+  }
+  ```
+
+- **暗号化モデル**: 各アイテムはドロップの都度生成される使い捨ての AES-256-GCM 鍵で暗号化され、
+  ciphertext のみが mistlib の block store(P2P で可視になりうる)に乗る。鍵と IV は `key`/`iv`
+  として `meta` にそのままインラインで乗るが、これは上記「設計方針」の
+  「署名なし・同一オリジンを信頼境界とする」方針どおりで、そもそも `localStorage`/
+  BroadcastChannel への到達自体が同一オリジンに限定されているため許容している。この鍵の同梱も
+  その境界の内側にあり、バス自体に新たな信頼境界を持ち込むものではない。
+- **読み手**: tc-storage(`src/app/appDriveInbox.ts`)。起動時に
+  `readShared("storage-drive-inbox")` を読み、以後 `subscribeShared` で購読する。各アイテムを
+  `storage_get(cid)` → AES-GCM 復号 → SHA-256 チェックサム照合の順に処理し、一致した平文だけを
+  `File` 化して通常のアップロードフローへ渡す。専用フォルダ「tc-noteから追加」(ルート直下、
+  既存があれば再利用)へ格納する。取込済み `id` は `tc-storage-drive-inbox-imported-v1`
+  (上限1000件)に記録して冪等化する — `translations-inbox` の `tc-storage-translate-imported-v1`
+  と同じパターン。
+- **チェックサム不一致・復号失敗の扱い**: 復号または照合に失敗したアイテムは、ciphertext と
+  チェックサムが発行時点で固定されている(再試行しても結果は変わらない)ため、恒久的に
+  取込済み扱いとしてマークされ、以後の再発行では無視される。一方、復号までは成功したが
+  アップロード段階自体で失敗した場合は取込済みマークをつけない — 次回の republish/購読で
+  再試行される。
+- **クロスアプリ書き込みについて**: `translations-inbox` と同様、tc-storage の
+  `tc-storage-snapshot-v1` へは tc-storage 自身が書き込む。tc-note はバス経由でアイテムを
+  渡すだけで、スナップショットや tc-storage の他の localStorage キーを直接読み書きしない。
+
 ## バージョニング方針
 
 - 契約を破壊的に変更する場合(`SharedRecord`/`SharedBusMessage` の必須フィールド変更、

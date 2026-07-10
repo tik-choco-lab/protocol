@@ -14,6 +14,7 @@ mistlib 使用: あり(`tc-note/src/lib/mistlib.ts`、`storage_add`/`storage_get
 | `mist_translated_markdown_index` | `Record<string, Record<string, string>>`(ファイル名→言語→CID) | tc-pdf-viewer | **tc-note (読み取り専用)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:11; tc-pdf-viewer/src/services/storage.js |
 | `tc-translate-history-v1` | `TranslationHistoryEntry[]` | tc-note (読み取り専用, インポート機能), tc-translate | tc-translate | tc-note/src/lib/importTranslations.ts:9 |
 | `tc-shared-note-article-v1` | `SharedRecord`(`meta` は `NoteArticleMeta`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note, tc-news | **tc-chat(クロスアプリ読み取り)** | tc-note/src/lib/shareArticle.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `note-article` トピック |
+| `tc-shared-storage-drive-inbox-v1` | `SharedRecord`(`meta` は `{ items: DriveInboxItem[] }`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note | **tc-storage(クロスアプリ読み取り)** | tc-note/src/lib/storageDriveInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `storage-drive-inbox` トピック |
 
 ## NoteMeta
 
@@ -57,3 +58,9 @@ interface Folder {
   (`publishArticleToChat`)も同トピックへ書き込む。両者の `meta` の違い(インライン本文の
   扱い)を含む契約の詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の「既存トピック:
   `note-article`」を参照。
+- **`tc-shared-storage-drive-inbox-v1`** はノートにドロップされたファイルを tc-storage の
+  ドライブへ複製するための共有バストピック(`storage-drive-inbox`)。tc-note
+  (`storageDriveInbox.ts`)がファイルごとに使い捨ての AES-256-GCM 鍵で暗号化し、ciphertext を
+  mistlib の CID として、鍵/IV/チェックサムをメタデータとしてバスに乗せる。tc-storage の
+  localStorage キーを直接読み書きすることはなく、連携はこのトピック経由のみ。詳細は
+  [../SHARED_BUS.md](../SHARED_BUS.md) の「既存トピック: `storage-drive-inbox`」を参照。
