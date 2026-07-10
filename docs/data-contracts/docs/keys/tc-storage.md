@@ -20,6 +20,8 @@ mistlib 使用: あり(`tc-storage/src/storage/mistStorage.ts` ほか、`storage
 | `tc-storage-browser-view-mode-v1` | `'grid' \| 'list'` | tc-storage | tc-storage | tc-storage/src/app/appUtils.ts:9,184 |
 | `tc-storage-translate-imported-v1` | `string[]`(取込済みの翻訳項目ID、上限あり) | tc-storage | tc-storage | tc-storage/src/app/appTranslationsInbox.ts。共有バス `translations-inbox`(tc-translate 発行)から取り込んだ項目の冪等化用。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) |
 | `tc-storage-drive-inbox-imported-v1` | `string[]`(取込済みのdrive-inboxアイテムID、上限1000件) | tc-storage | tc-storage | tc-storage/src/app/appDriveInbox.ts。共有バス `storage-drive-inbox`(tc-note 発行)から取り込んだ項目の冪等化用。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) |
+| `tc-shared-note-doc-index-v1` | `SharedRecord`(`meta` は `{ notes: NoteDocIndexEntry[] }`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note | **tc-storage(クロスアプリ読み取り)** | tc-storage/src/app/appNoteDocInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `note-doc-index` トピック |
+| `tc-storage-note-doc-imported-v1` | `{ v: 1, entries: Record<noteId, { cid: string; fileId: string }> }`(上限1000件) | tc-storage | tc-storage | tc-storage/src/app/appNoteDocInbox.ts。共有バス `note-doc-index`(tc-note 発行)から取り込んだノートのCID/ファイルID対応。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) |
 
 ## AppSettings
 
@@ -72,6 +74,16 @@ type PublicDidIdentity = {
   取込済み ID は `tc-storage-drive-inbox-imported-v1` に記録して冪等化する。契約詳細は
   [../SHARED_BUS.md](../SHARED_BUS.md)。tc-note は tc-storage の localStorage キーを
   直接読み書きしない(連携はこのトピック経由のみ)。
+- **クロスアプリ受信(note-doc-index)**: 共有バスの `note-doc-index` トピック(tc-note発行)を
+  購読し、`src/app/appNoteDocInbox.ts` が各エントリを `<タイトル>.md`(サニタイズ、フォールバック
+  「無題」)としてルート直下の専用フォルダ「tc-noteのノート」へ取り込む。ノートIDごとに
+  「生きているコピーは常に1つ」で、同じノートが新しいCIDで再発行された(編集された)場合は
+  前回取り込んだファイルを置き換える。取込状態(ノートID→CID/ファイルIDの対応)は
+  `tc-storage-note-doc-imported-v1`(上限1000件)に記録し、ユーザーが取り込み済みファイルを
+  削除した場合、同じCIDは再取込しない。tc-note でのノート削除は伝播しない(v1): インデックスから
+  エントリが外れるだけで、tc-storage は既存コピーを保持し続ける。ノート本文は暗号化されず
+  平文CIDのまま届く(tc-note の `saveNote` が保存時点で既に平文で mistlib に保存しているため、
+  `storage-drive-inbox` と異なり暗号化の必要がない)。契約詳細は [../SHARED_BUS.md](../SHARED_BUS.md)。
 - **`tc-storage-snapshot-v1` の直接クロスアプリ読み取り**: tc-chat がドロップ済みファイルを
   CID 添付できるよう、`tc-chat/src/interop/tcStorageFiles.ts` がこのキーを `getItem` で
   直接読む(読み取り専用、tc-chat は一切書き込まない)。ソフトデリート済み・未アップロード
