@@ -31,8 +31,8 @@ const PLACEHOLDER = '__APP_NAME__';
 
 // Which vendored files each app carries, and where. `dir` is relative to the
 // app's own repo root. `lang` selects the .ts or .js reference rendering.
-// `sharedBus: false` (tc-vrm-viewer) means: vendor appManifest only — that
-// app doesn't carry the shared bus yet.
+// `sharedBus: false` (tc-vrm-viewer, tc-vrsns2) means: vendor appManifest
+// only — that app doesn't carry the shared bus yet.
 const APPS = [
   { name: 'tc-note', dir: 'src/lib', lang: 'ts', sharedBus: true },
   { name: 'tc-storage', dir: 'src/storage', lang: 'ts', sharedBus: true },
@@ -43,6 +43,7 @@ const APPS = [
   { name: 'tc-town', dir: 'src/lib', lang: 'ts', sharedBus: true },
   { name: 'tc-travel', dir: 'src/lib/drive', lang: 'ts', sharedBus: true },
   { name: 'tc-vrm-viewer', dir: 'src/lib', lang: 'ts', sharedBus: false },
+  { name: 'tc-vrsns2', dir: 'src/lib', lang: 'ts', sharedBus: false },
 ];
 const APP_BY_NAME = new Map(APPS.map((a) => [a.name, a]));
 

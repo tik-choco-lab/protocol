@@ -11,7 +11,7 @@
   ルール」参照)。
 - アプリを横断して共有することを意図した「共有キー」(例: `tc-shared-did-identity-cid-v1`)は、
   あえてアプリ名プレフィックスを付けず `tc-shared-<name>` 形式にする。現状この方式は
-  DID identity で tc-storage・tc-chat・tc-vrm-viewer・tc-news の4アプリが採用しており、
+  DID identity で tc-storage・tc-chat・tc-vrm-viewer・tc-news・tc-vrsns2 の5アプリが採用しており、
   仕様は [docs/did-identity.md](did-identity.md) を参照。新たに真の共有データを設計する場合は
   この方式を検討すること。
 
@@ -40,7 +40,7 @@
   (読み手アプリ名)を明記する。本リポジトリ調査で判明している既知のクロスアプリ読み取り:
   - tc-note → tc-pdf-viewer: `mist_ocr_markdown_index`, `mist_translated_markdown_index`
   - tc-note → tc-translate: `tc-translate-history-v1`(キー名がハードコードで衝突・共有)
-  - tc-storage ⇄ tc-chat ⇄ tc-vrm-viewer ⇄ tc-news: DID identity は `tc-shared-did-identity-cid-v1`
+  - tc-storage ⇄ tc-chat ⇄ tc-vrm-viewer ⇄ tc-news ⇄ tc-vrsns2: DID identity は `tc-shared-did-identity-cid-v1`
     経由で共有される(各アプリのローカルミラーキーは独立だが最終的に同一DIDへ収束する)。
     詳細は [docs/did-identity.md](did-identity.md) 参照。
   - tc-pdf-viewer → tc-note: OCR Markdown インデックスは `mist_ocr_markdown_index` の直接
