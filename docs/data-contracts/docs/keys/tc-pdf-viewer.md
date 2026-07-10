@@ -15,6 +15,7 @@ mistlib 使用: あり(`tc-pdf-viewer/src/lib/mistlib/`、`storage_add`/`storage
 | `mist_last_lang` | `string`(最後に使用した翻訳言語) | tc-pdf-viewer | tc-pdf-viewer | tc-pdf-viewer/src/utils/mist.js |
 | `mist_last_pdf` | `string`(最後に開いた PDF の識別子) | tc-pdf-viewer | tc-pdf-viewer | tc-pdf-viewer/src/utils/mist.js |
 | `ai_settings` | AI 設定(下記) | tc-pdf-viewer | tc-pdf-viewer | tc-pdf-viewer/src/services/ai.js:127-154 |
+| `tc-shared-folder-export-v1` | `SharedRecord`(`meta` は `FolderExportMeta`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-pdf-viewer, **tc-travel(2人目の書き手)** | **tc-storage(クロスアプリ読み取り)** | tc-pdf-viewer/src/services/driveExport.js。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `folder-export` トピック |
 
 ## ai_settings (概要)
 
@@ -36,3 +37,9 @@ mistlib 使用: あり(`tc-pdf-viewer/src/lib/mistlib/`、`storage_add`/`storage
   レコードを書き、BroadcastChannel で購読者(tc-note)に通知する。詳細は
   [../SHARED_BUS.md](../SHARED_BUS.md) を参照。`mist_ocr_markdown_index` 自体は
   後方互換のため引き続き残る。
+- **`tc-shared-folder-export-v1`** は暗号化フォルダバンドルを任意のドライブ実装アプリへ
+  エクスポートするための共有バストピック(`folder-export`)。書き手は tc-pdf-viewer の
+  `driveExport.js`(`FOLDER_EXPORT_TOPIC`)に加え、tc-travel の `src/lib/drive/export.ts` も
+  同トピックへ書き込む(2人目の書き手)。単一レコードのため後発行が前発行を上書きする点を
+  含む契約の詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の「既存トピック:
+  `folder-export`」を参照。
