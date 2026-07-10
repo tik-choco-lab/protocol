@@ -2,12 +2,13 @@
 // tik-choco vendored reference-file sync
 //
 // Copies the canonical reference modules under
-// protocol/docs/data-contracts/reference/ (sharedBus.ts/js, appManifest.ts/js)
-// out to each app's vendored copy, substituting the per-app APP_NAME
-// placeholder in sharedBus. This replaces hand-copying those files between
-// app repos on every edit — apps still have zero *runtime* dependency on this
-// protocol repo (nothing here is imported at build/run time; the files are
-// just source-copied).
+// protocol/docs/data-contracts/reference/ (sharedBus.ts/js, appManifest.ts/js,
+// llmConfig.ts/js) out to each app's vendored copy, substituting the per-app
+// APP_NAME placeholder in sharedBus (appManifest and llmConfig have no
+// per-app placeholder — they're byte-identical everywhere). This replaces
+// hand-copying those files between app repos on every edit — apps still have
+// zero *runtime* dependency on this protocol repo (nothing here is imported
+// at build/run time; the files are just source-copied).
 //
 // Run from the workspace root that contains this repo (`protocol/`) as a
 // sibling of the app checkouts (`tc-note/`, `tc-storage/`, ...):
@@ -31,19 +32,31 @@ const PLACEHOLDER = '__APP_NAME__';
 
 // Which vendored files each app carries, and where. `dir` is relative to the
 // app's own repo root. `lang` selects the .ts or .js reference rendering.
-// `sharedBus: false` (tc-vrm-viewer, tc-vrsns2) means: vendor appManifest
-// only — that app doesn't carry the shared bus yet.
+// Each entry declares per-file flags: `sharedBus`, `appManifest`,
+// `llmConfig`. `sharedBus: false` (tc-vrm-viewer, tc-vrsns2, tc-mistllm)
+// means: that app doesn't carry the shared bus (yet). `appManifest: false`
+// means: don't touch that file for this app — used when an app's manifest
+// implementation is hand-written/diverged and syncing would clobber or
+// duplicate it. `llmConfig: true` opts an app into the shared LLM/TTS/STT
+// connection config (protocol/docs/data-contracts/docs/llm-config.md);
+// llmConfig has no per-app placeholder, so it defaults to false and must be
+// enabled explicitly per app.
 const APPS = [
-  { name: 'tc-note', dir: 'src/lib', lang: 'ts', sharedBus: true },
-  { name: 'tc-storage', dir: 'src/storage', lang: 'ts', sharedBus: true },
-  { name: 'tc-pdf-viewer', dir: 'src/services', lang: 'js', sharedBus: true },
-  { name: 'tc-translate', dir: 'src/lib', lang: 'ts', sharedBus: true },
-  { name: 'tc-chat', dir: 'src/lib', lang: 'ts', sharedBus: true },
-  { name: 'tc-news', dir: 'src/lib', lang: 'ts', sharedBus: true },
-  { name: 'tc-town', dir: 'src/lib', lang: 'ts', sharedBus: true },
-  { name: 'tc-travel', dir: 'src/lib/drive', lang: 'ts', sharedBus: true },
-  { name: 'tc-vrm-viewer', dir: 'src/lib', lang: 'ts', sharedBus: false },
-  { name: 'tc-vrsns2', dir: 'src/lib', lang: 'ts', sharedBus: false },
+  { name: 'tc-note', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
+  { name: 'tc-storage', dir: 'src/storage', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: false },
+  { name: 'tc-pdf-viewer', dir: 'src/services', lang: 'js', sharedBus: true, appManifest: true, llmConfig: true },
+  { name: 'tc-translate', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
+  { name: 'tc-chat', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: false },
+  { name: 'tc-news', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
+  { name: 'tc-town', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
+  { name: 'tc-travel', dir: 'src/lib/drive', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
+  { name: 'tc-vrm-viewer', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: false },
+  { name: 'tc-vrsns2', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: false },
+  // tc-mistllm's src/lib/appManifest.ts is already a byte-identical copy of
+  // the reference (written by hand before this app was added to this table),
+  // so vendoring it is a safe no-op — not "hand-written/diverged", just
+  // previously unmanaged. It doesn't carry sharedBus yet.
+  { name: 'tc-mistllm', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: true },
 ];
 const APP_BY_NAME = new Map(APPS.map((a) => [a.name, a]));
 
@@ -51,8 +64,8 @@ function usageAndExit(code) {
   console.log('Usage: node protocol/scripts/sync-vendored.mjs <app...|all> [--check]\n');
   console.log('Known apps:');
   for (const a of APPS) {
-    const files = a.sharedBus ? 'sharedBus + appManifest' : 'appManifest only';
-    console.log(`  ${a.name.padEnd(16)} ${a.dir.padEnd(16)} (${a.lang})  ${files}`);
+    const files = ['appManifest', 'sharedBus', 'llmConfig'].filter((f) => a[f]);
+    console.log(`  ${a.name.padEnd(16)} ${a.dir.padEnd(16)} (${a.lang})  ${files.join(' + ') || '(none)'}`);
   }
   process.exit(code);
 }
@@ -129,12 +142,14 @@ for (const rawName of targetApps) {
     continue;
   }
 
+  const fileCount = ['sharedBus', 'appManifest', 'llmConfig'].filter((f) => app[f]).length;
+
   const appDir = path.join(WORKSPACE, app.name);
   console.log(`${app.name}:`);
   if (!fs.existsSync(appDir)) {
     console.log(`  [missing]   app directory not found: ${path.relative(WORKSPACE, appDir)} — skipping`);
     anyDiff = true;
-    summary.push({ app: app.name, changed: 0, missing: 2, unchanged: 0 });
+    summary.push({ app: app.name, changed: 0, missing: fileCount, unchanged: 0 });
     continue;
   }
 
@@ -142,7 +157,7 @@ for (const rawName of targetApps) {
   if (!fs.existsSync(targetDir)) {
     console.log(`  [missing]   target dir not found: ${path.relative(WORKSPACE, targetDir)} — skipping`);
     anyDiff = true;
-    summary.push({ app: app.name, changed: 0, missing: app.sharedBus ? 2 : 1, unchanged: 0 });
+    summary.push({ app: app.name, changed: 0, missing: fileCount, unchanged: 0 });
     continue;
   }
 
@@ -160,15 +175,29 @@ for (const rawName of targetApps) {
     counts[r.status] += 1;
   }
 
-  const r = syncOneFile({
-    appDir,
-    appName: app.name,
-    targetDir,
-    baseName: 'appManifest',
-    lang: app.lang,
-    substitutePlaceholder: false,
-  });
-  counts[r.status] += 1;
+  if (app.appManifest) {
+    const r = syncOneFile({
+      appDir,
+      appName: app.name,
+      targetDir,
+      baseName: 'appManifest',
+      lang: app.lang,
+      substitutePlaceholder: false,
+    });
+    counts[r.status] += 1;
+  }
+
+  if (app.llmConfig) {
+    const r = syncOneFile({
+      appDir,
+      appName: app.name,
+      targetDir,
+      baseName: 'llmConfig',
+      lang: app.lang,
+      substitutePlaceholder: false,
+    });
+    counts[r.status] += 1;
+  }
 
   if (counts.changed > 0 || counts.missing > 0) anyDiff = true;
   summary.push({ app: app.name, ...counts });
