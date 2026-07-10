@@ -215,3 +215,22 @@ function resolveVoice(config: SharedLlmConfigV1, kind: "tts" | "stt"): { baseUrl
 [SHARED_BUS.md](SHARED_BUS.md)/[app-manifest.md](app-manifest.md) と同じ方針。破壊的変更は
 `tc-shared-llm-config-v1` を `tc-shared-llm-config-v2` のようにサフィックスを1つ上げるか、
 `v` フィールドで分岐する。後方互換なフィールド追加は同じバージョンのままでよい。
+
+## 関連実装: mistl
+
+mistl(OS常駐ノード)は localStorage を持たないネイティブデーモンのため本契約の参加者
+ではないが、同じ provider/preset 分離仕様を `config.toml` の `[ai]` セクションに
+snake_case で採用する。
+
+| 本契約(localStorage, camelCase) | mistl(config.toml, snake_case) |
+|---|---|
+| `providers[]` `{id,label,baseUrl,apiKey}` | `[[ai.providers]]` `{id,label,base_url,api_key}` |
+| `presets[]` `{id,label,providerId,model,temperature?,reasoningEffort?}` | `[[ai.presets]]` `{id,label,provider_id,model,temperature?,reasoning_effort?}` |
+| `defaultPresetId` | `ai.default_preset_id` |
+| `network.roomId` | `ai.room_id`(既存フィールドが兼任) |
+| `tts`/`stt` | なし(音声非対応、`voice_error` で応答) |
+
+レガシーの旧フラットフィールド(`ai.upstream_url`/`upstream_api_key`/`default_model`/
+`temperature`)は読み込み時に provider+preset の組(id `"default"`)へ一度だけ移行し
+(冪等・merge-never-delete、本契約の「マイグレーション規則」と同方針)、保存後は
+旧フィールドを落とす。
