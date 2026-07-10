@@ -16,6 +16,7 @@ mistlib 使用: あり(`tc-note/src/lib/mistlib.ts`、`storage_add`/`storage_get
 | `tc-translate-history-v1` | `TranslationHistoryEntry[]` | tc-note (読み取り専用, インポート機能), tc-translate | tc-translate | tc-note/src/lib/importTranslations.ts:9 |
 | `tc-shared-note-article-v1` | `SharedRecord`(`meta` は `NoteArticleMeta`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note, tc-news | **tc-chat(クロスアプリ読み取り)** | tc-note/src/lib/shareArticle.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `note-article` トピック |
 | `tc-shared-storage-drive-inbox-v1` | `SharedRecord`(`meta` は `{ items: DriveInboxItem[] }`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note | **tc-storage(クロスアプリ読み取り)** | tc-note/src/lib/storageDriveInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `storage-drive-inbox` トピック |
+| `tc-shared-note-doc-index-v1` | `SharedRecord`(`meta` は `{ notes: NoteDocIndexEntry[] }`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note | **tc-storage(クロスアプリ読み取り)** | tc-note/src/lib/noteDocExport.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `note-doc-index` トピック |
 
 ## NoteMeta
 
@@ -88,3 +89,10 @@ interface LlmSettings {
   mistlib の CID として、鍵/IV/チェックサムをメタデータとしてバスに乗せる。tc-storage の
   localStorage キーを直接読み書きすることはなく、連携はこのトピック経由のみ。詳細は
   [../SHARED_BUS.md](../SHARED_BUS.md) の「既存トピック: `storage-drive-inbox`」を参照。
+- **`tc-shared-note-doc-index-v1`** はノート本体を tc-storage のドライブへ複製するための
+  共有バストピック(`note-doc-index`)。tc-note(`noteDocExport.ts`)がノートの保存/削除/復元の
+  たびにデバウンス発行し、CIDを持つノートを更新日時降順で直近500件まで、毎回まるごと
+  再発行する。ノート本文は `saveNote` の時点で既に平文のまま mistlib OPFS に保存済みのため
+  (`storage-drive-inbox` と異なり)追加の暗号化は行わない。ノート削除はインデックスから
+  除外されるのみで、tc-storage 側の既存コピーには伝播しない(v1)。詳細は
+  [../SHARED_BUS.md](../SHARED_BUS.md) の「既存トピック: `note-doc-index`」を参照。

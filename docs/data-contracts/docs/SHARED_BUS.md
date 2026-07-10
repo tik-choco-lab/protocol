@@ -363,14 +363,67 @@ tc-note にドロップされたファイルを、tc-storage のドライブへ�
   既存があれば再利用)へ格納する。取込済み `id` は `tc-storage-drive-inbox-imported-v1`
   (上限1000件)に記録して冪等化する — `translations-inbox` の `tc-storage-translate-imported-v1`
   と同じパターン。
-- **チェックサム不一致・復号失敗の扱い**: 復号または照合に失敗したアイテムは、ciphertext と
-  チェックサムが発行時点で固定されている(再試行しても結果は変わらない)ため、恒久的に
-  取込済み扱いとしてマークされ、以後の再発行では無視される。一方、復号までは成功したが
-  アップロード段階自体で失敗した場合は取込済みマークをつけない — 次回の republish/購読で
-  再試行される。
+- **取込失敗の扱い(一時的 vs 恒久的)**: アイテム解決の失敗は性質によって扱いを分ける。
+  **一時的な失敗**(mist モジュールのロード失敗、`storage_get` の失敗など、P2P/ネットワーク
+  状態に依存し再試行すれば成功しうるもの)は取込済みマークをつけない — 次回の republish/購読で
+  再試行される。一方、**恒久的な失敗**(復号エラー、チェックサム不一致)は、ciphertext と
+  チェックサムが発行時点で固定されており再試行しても結果が変わらないため、恒久的に取込済み
+  扱いとしてマークされ、以後の再発行では無視される。復号までは成功したがアップロード段階
+  自体で失敗した場合も取込済みマークをつけない(次回の republish/購読で再試行される)。
 - **クロスアプリ書き込みについて**: `translations-inbox` と同様、tc-storage の
   `tc-storage-snapshot-v1` へは tc-storage 自身が書き込む。tc-note はバス経由でアイテムを
   渡すだけで、スナップショットや tc-storage の他の localStorage キーを直接読み書きしない。
+
+## 既存トピック: `note-doc-index`
+
+tc-note に書かれたノートを、tc-storage のドライブへ「ノート本体」として複製するための
+トピック。`storage-drive-inbox` と同じ tc-note→tc-storage 方向のインボックス系トピックだが、
+対象がドロップされた任意ファイルではなくノート自身の Markdown 本文であり、かつ暗号化を
+行わない点が異なる。
+
+- **書き手**: tc-note(`src/lib/noteDocExport.ts` の `publishNoteDocIndex`/
+  `schedulePublishNoteDocIndex`)。ノートの保存・削除・復元のたびにデバウンス(約1秒)して
+  発行するほか、アプリ起動時にも1回発行する。ローカルのノート索引全体から、CID を持つ
+  (=一度でも保存された)ノートだけを対象に、更新日時降順で直近500件までに絞り込み、
+  `translations-inbox`/`storage-drive-inbox` と同じく毎回まるごと再発行する(差分でなく
+  全量republish)。`cid` は常に `""` 固定で、各ノートへのポインタは `meta` にインラインで
+  持つ。
+
+  ```ts
+  interface NoteDocIndexEntry {
+    id: string          // ノートのUUID。受け手はこれで重複排除・差し替えを行う
+    title: string
+    cid: string          // mistlib storage_add のCID。ノート本文(Markdown)そのもの、平文
+    updatedAt: number    // ms epoch
+  }
+  ```
+
+  `meta` の形は `{ notes: NoteDocIndexEntry[] }`。CID を持たないノート(未保存)はインデックス
+  から除外される。
+
+- **設計判断(暗号化なし)**: `storage-drive-inbox` はドロップされたファイルをその場で暗号化
+  してから CID 化する(暗号化前の平文が tc-storage 以外のどこにも存在しなかったため)。
+  `note-doc-index` はこれと異なり、意図的に暗号化しない: tc-note の `saveNote`
+  (`mistlib.ts`)がノート保存の時点で既に本文を平文のまま同一オリジン共有の mistlib OPFS
+  ブロックストアへ `storage_add` しており(このCIDは `tc-note:index` の `NoteMeta.cid` として
+  既に扱われている)、そのCIDをバスに乗せても新たな露出を生まない。既存の平文保存に
+  「あと乗り」するだけであり、`storage-drive-inbox` のように新規の信頼境界(使い捨て鍵の同梱)
+  を持ち込む必要がない。
+- **読み手**: tc-storage(`src/app/appNoteDocInbox.ts`)。起動時に `readShared("note-doc-index")`
+  を読み、以後 `subscribeShared` で購読する。各エントリを `<タイトル>.md`(ファイル名は
+  サニタイズ、タイトルが使えない場合は「無題」)としてルート直下の専用フォルダ
+  「tc-noteのノート」へ取り込む。ノートIDごとに「生きているコピーは常に1つ」で、同じ `id`
+  が新しいCIDで再発行された(編集された)場合は前回取り込んだファイルを置き換える。取込状態
+  (ノートID→CID/ファイルIDの対応)は `tc-storage-note-doc-imported-v1`(上限1000件)に記録し、
+  ユーザーが tc-storage 側で取り込み済みファイルを削除した場合、同じCIDは再取込しない
+  (削除の意思を尊重する)。
+- **ノート削除は伝播しない(v1)**: tc-note でノートを削除しても、次回発行のインデックスから
+  当該エントリが単に外れるだけで、tc-storage へ削除通知が飛ぶことはない。tc-storage は
+  既に取り込んだコピーをそのまま保持し続ける(`storage-drive-inbox`/`translations-inbox` にも
+  共通するインボックス系トピックの性質:「一度取り込んだら受け手の管理下」という設計)。
+- **クロスアプリ書き込みについて**: `storage-drive-inbox` と同様、tc-storage の
+  `tc-storage-snapshot-v1` へは tc-storage 自身が書き込む。tc-note はバス経由でインデックスを
+  渡すだけで、tc-storage の他の localStorage キーを直接読み書きしない。
 
 ## バージョニング方針
 
