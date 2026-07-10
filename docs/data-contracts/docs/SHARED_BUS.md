@@ -1,6 +1,6 @@
 # 共有バス(sharedBus)仕様
 
-tc-note / tc-storage / tc-pdf-viewer / tc-translate / tc-chat が同一オリジンで動く前提を活かし、「CID ポインタを
+tc-note / tc-storage / tc-pdf-viewer / tc-translate / tc-chat / tc-news が同一オリジンで動く前提を活かし、「CID ポインタを
 localStorage に置き、BroadcastChannel で変更を通知する」共有バスを提供する仕様。
 `tc-shared-did-identity-cid-v1`([docs/did-identity.md](did-identity.md))で既に使われていた
 「OPFS に実データ → localStorage にCIDポインタ」パターンを、任意のトピックで再利用できる
@@ -36,7 +36,7 @@ interface SharedRecord {
   /** ISO 8601 文字列 */
   updatedAt: string;
   /** 発行元アプリ */
-  from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-translate" | "tc-chat";
+  from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-translate" | "tc-chat" | "tc-news";
 }
 ```
 
@@ -48,7 +48,7 @@ interface SharedBusMessage {
   type: "updated";
   topic: string;
   cid: string;
-  from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-translate" | "tc-chat";
+  from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-translate" | "tc-chat" | "tc-news";
   updatedAt: string;
 }
 ```
@@ -90,9 +90,10 @@ function subscribeShared(topic: string, callback: (record: SharedRecord) => void
 | tc-pdf-viewer | `tc-pdf-viewer/src/services/sharedBus.js` | JavaScript(JSDoc型注釈) |
 | tc-translate | `tc-translate/src/lib/sharedBus.ts` | TypeScript |
 | tc-chat | `tc-chat/src/lib/sharedBus.ts` | TypeScript |
+| tc-news | `tc-news/src/lib/sharedBus.ts` | TypeScript |
 
-5ファイルは `APP_NAME` 定数(vendor 先アプリ名)以外、実装をできる限り同一に保つ。
-編集する場合は5ファイルすべてに反映すること。各ファイル冒頭のヘッダコメントに
+6ファイルは `APP_NAME` 定数(vendor 先アプリ名)以外、実装をできる限り同一に保つ。
+編集する場合は6ファイルすべてに反映すること。各ファイル冒頭のヘッダコメントに
 この同期義務と契約バージョンを明記してある。
 
 ## 既存トピック: `ocr-markdown-index`
@@ -165,7 +166,10 @@ tc-note のノートを、tc-chat のボードへ「記事」として取り込�
 - **書き手**: tc-note(`src/lib/shareArticle.ts` の `shareNoteAsArticle`)。ノートの
   ツールバーにある共有ボタン(EditorToolbar)から明示的に呼ばれる(自動発行ではない)。
   ノート本文(Markdown全文)を mistlib の `storage_add` でCID化し、
-  `publishShared("note-article", cid, meta)` を呼ぶ。
+  `publishShared("note-article", cid, meta)` を呼ぶ。tc-news(`src/lib/chatShare.ts` の
+  `publishArticleToChat`)も同トピックの書き手。生成した記事をユーザーが明示的に
+  tc-chat へ送るときに呼ばれる点は tc-note と同様だが、`storage_add` の成否に関わらず
+  常に `meta.text` にMarkdown全文をインラインする点が異なる(下記フォールバック参照)。
 
   ```ts
   // meta の形。text は cid === "" のときのみ存在する(下記フォールバック参照)。

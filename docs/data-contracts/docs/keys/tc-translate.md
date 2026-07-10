@@ -14,6 +14,7 @@ mistlib 使用: **なし**(grep で `mistlib`/`storage_add`/`storage_get`/OPFS �
 | `tc-translate-native-language-v1` | `string`(言語コード) | tc-translate | tc-translate | tc-translate/src/constants.ts:10; src/lib/storage.ts:118-123 |
 | `tc-translate-mode-v1` | `string`(動作モード) | tc-translate | tc-translate | tc-translate/src/constants.ts:11; src/lib/storage.ts:127-132 |
 | `tc-translate-mistllm-node-id-v1` | `string`(UUID) | tc-translate | tc-translate | tc-translate/src/lib/mistllm/node.ts:16-34。mistllm(P2P LLMネットワーク)ノードIDで、初回生成後 `localStorage` に永続化される。tc-translate 全体で使う機器識別子とは別物(mistllm 専用) |
+| `tc-shared-translations-inbox-v1` | `SharedRecord`(`meta` は `{ v, count, items: TranslationInboxItem[] }`) | tc-translate | **tc-storage(クロスアプリ読み取り、ドライブへ取り込み)** | tc-translate/src/lib/shareToStorage.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `translations-inbox` トピック |
 
 ## 特記事項
 
@@ -21,5 +22,10 @@ mistlib 使用: **なし**(grep で `mistlib`/`storage_add`/`storage_get`/OPFS �
   クロスアプリキー。[tc-note.md](tc-note.md) の特記事項も参照。tc-translate 側で
   `TranslationHistoryEntry` の形を変える場合は tc-note の `importTranslations.ts` への
   影響を確認すること。
+- `tc-shared-translations-inbox-v1` は共有バス経由で tc-storage に翻訳結果を
+  「ファイルとして」流し込む。履歴が更新されるたびに Markdown 化した項目一覧を
+  再発行し、tc-storage が未取込分を「TC Translate」フォルダへ取り込む。契約の詳細と
+  `TranslationInboxItem` の形は [../SHARED_BUS.md](../SHARED_BUS.md) を参照。項目の形を
+  変える場合は tc-storage の `appTranslationsInbox.ts` への影響を確認すること。
 - 全キーが `tc-translate-<name>-v1` 規約(ハイフン区切り + version サフィックス)で
   統一されている。tc-storage と同じ命名パターン。

@@ -1,8 +1,8 @@
 # tc-protocol
 
 `tik-choco` 配下のアプリ群(tc-note, tc-pdf-viewer, tc-storage, tc-chat, tc-translate,
-tc-mistllm, tc-vrm-viewer, tc-home)が暗黙に共有している「同一オリジンでのデータ共有」契約を
-明文化するための仕様リポジトリです。
+tc-mistllm, tc-vrm-viewer, tc-home, tc-news)が暗黙に共有している「同一オリジンでのデータ共有」
+契約を明文化するための仕様リポジトリです。
 
 ## 目的
 
