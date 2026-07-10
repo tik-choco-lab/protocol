@@ -8,8 +8,8 @@ mistlib 使用: あり(`tc-storage/src/storage/mistStorage.ts` ほか、`storage
 | `tc-storage-room-id-v1` | `string` | tc-storage | tc-storage | tc-storage/src/storage/localSettings.ts:14 |
 | `tc-storage-node-id-v1` | `string` | tc-storage | tc-storage | tc-storage/src/storage/localSettings.ts:39,68-73 |
 | `tc-storage-did-identity-v1` | DID identity レコード(下記)、ローカル優先のミラーキー | tc-storage | tc-storage | tc-storage/src/crypto/didIdentity.ts:17 |
-| `tc-shared-did-identity-cid-v1` | `string`(共有 identity レコードの mistlib CID) | tc-storage(ローカルが正の場合に書き戻す), tc-chat, tc-vrm-viewer | tc-storage, tc-chat, tc-vrm-viewer | tc-storage/src/crypto/sharedDidIdentity.ts:32。詳細は [../did-identity.md](../did-identity.md) |
-| `tc-storage-snapshot-v1` | `StorageSnapshot` | tc-storage | tc-storage, **tc-chat (クロスアプリ読み取り専用)** | tc-storage/src/storage/localSnapshot.ts:4; tc-chat/src/interop/tcStorageFiles.ts:42,68-101 |
+| `tc-shared-did-identity-cid-v1` | `string`(共有 identity レコードの mistlib CID) | tc-storage(ローカルが正の場合に書き戻す), tc-chat, tc-vrm-viewer, tc-news, tc-vrsns2 | tc-storage, tc-chat, tc-vrm-viewer, tc-news, tc-vrsns2 | tc-storage/src/crypto/sharedDidIdentity.ts:32。詳細は [../did-identity.md](../did-identity.md) |
+| `tc-storage-snapshot-v1` | `StorageSnapshot` | tc-storage | tc-storage, **tc-chat, tc-vrsns2 (クロスアプリ読み取り専用)** | tc-storage/src/storage/localSnapshot.ts:4; tc-chat/src/interop/tcStorageFiles.ts:42,68-101; tc-vrsns2/src/interop/tcStorageFiles.ts:46 |
 | `tc-storage-folder-access-modes-v1` | フォルダアクセスモード `Record<string, mode>` | tc-storage | tc-storage | tc-storage/src/folder/folderAccess.ts:3 |
 | `tc-storage-folder-keys-v1` | フォルダ暗号鍵 `Record<string, string>` | tc-storage | tc-storage | tc-storage/src/crypto/folderKeys.ts:5 |
 | `tc-storage-file-share-keys-v1` | ファイル共有鍵 `Record<string, string>` | tc-storage | tc-storage | tc-storage/src/crypto/fileShareKeys.ts:4 |
@@ -76,4 +76,5 @@ type PublicDidIdentity = {
   CID 添付できるよう、`tc-chat/src/interop/tcStorageFiles.ts` がこのキーを `getItem` で
   直接読む(読み取り専用、tc-chat は一切書き込まない)。ソフトデリート済み・未アップロード
   (`lastCid`/`lastShareCid` 無し)のファイルは除外し、実際に添付するのは `lastCid` の
-  mistlib CID であって、スナップショットの内容そのものではない。
+  mistlib CID であって、スナップショットの内容そのものではない。tc-vrsns2 も同型の
+  `tc-vrsns2/src/interop/tcStorageFiles.ts` で同じ読み取り専用アクセスを行う。
