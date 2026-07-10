@@ -1,7 +1,10 @@
 # 共有バス(sharedBus)仕様
 
-tc-note / tc-storage / tc-pdf-viewer / tc-translate / tc-chat / tc-news が同一オリジンで動く前提を活かし、「CID ポインタを
+tc-note / tc-storage / tc-pdf-viewer / tc-translate / tc-chat / tc-news / tc-town / tc-travel が
+同一オリジンで動く前提を活かし、「CID ポインタを
 localStorage に置き、BroadcastChannel で変更を通知する」共有バスを提供する仕様。
+tc-vrm-viewer は `SharedAppName` の一員として型上は予約済みだが、現時点ではまだこのファイルを
+vendor していない(参加時期未定)。
 `tc-shared-did-identity-cid-v1`([docs/did-identity.md](did-identity.md))で既に使われていた
 「OPFS に実データ → localStorage にCIDポインタ」パターンを、任意のトピックで再利用できる
 汎用モジュールとして切り出したもの。
@@ -36,7 +39,8 @@ interface SharedRecord {
   /** ISO 8601 文字列 */
   updatedAt: string;
   /** 発行元アプリ */
-  from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-translate" | "tc-chat" | "tc-news";
+  from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-translate" | "tc-chat" | "tc-news"
+      | "tc-town" | "tc-travel" | "tc-vrm-viewer";
 }
 ```
 
@@ -48,7 +52,8 @@ interface SharedBusMessage {
   type: "updated";
   topic: string;
   cid: string;
-  from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-translate" | "tc-chat" | "tc-news";
+  from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-translate" | "tc-chat" | "tc-news"
+      | "tc-town" | "tc-travel" | "tc-vrm-viewer";
   updatedAt: string;
 }
 ```
@@ -91,10 +96,24 @@ function subscribeShared(topic: string, callback: (record: SharedRecord) => void
 | tc-translate | `tc-translate/src/lib/sharedBus.ts` | TypeScript |
 | tc-chat | `tc-chat/src/lib/sharedBus.ts` | TypeScript |
 | tc-news | `tc-news/src/lib/sharedBus.ts` | TypeScript |
+| tc-town | `tc-town/src/lib/sharedBus.ts` | TypeScript |
+| tc-travel | `tc-travel/src/lib/drive/sharedBus.ts` | TypeScript |
 
-6ファイルは `APP_NAME` 定数(vendor 先アプリ名)以外、実装をできる限り同一に保つ。
-編集する場合は6ファイルすべてに反映すること。各ファイル冒頭のヘッダコメントに
+8ファイルは `APP_NAME` 定数(vendor 先アプリ名)以外、実装をできる限り同一に保つ。
+編集する場合は8ファイルすべてに反映すること。各ファイル冒頭のヘッダコメントに
 この同期義務と契約バージョンを明記してある。
+
+正本(参照実装)は [reference/sharedBus.ts](../reference/sharedBus.ts) /
+[reference/sharedBus.js](../reference/sharedBus.js) にあり、`APP_NAME` の代わりに
+`__APP_NAME__` というプレースホルダを持つ。各アプリへの配布(プレースホルダの置換とファイル
+コピー)は `protocol/scripts/sync-vendored.mjs` が行う
+(`node protocol/scripts/sync-vendored.mjs <app...|all> [--check]`)。手動コピーではなく
+この正本+同期スクリプトを更新の起点にすること。
+
+正本には診断用の `export const BUS_VERSION = 1;` がある。これは「vendor先アプリがどのバージョンの
+sharedBus.ts を動かしているか」を人間がデバッグするためだけの値であり、契約そのものではない。
+契約の互換性は下記の `tc-shared-bus-v1` / `tc-shared-<topic>-v1` の `-v1` サフィックスが担う
+(バージョニング方針の節を参照)。`BUS_VERSION` を上げても契約上の意味は変わらない。
 
 ## 既存トピック: `ocr-markdown-index`
 
@@ -202,6 +221,106 @@ tc-note のノートを、tc-chat のボードへ「記事」として取り込�
   ため、チップは新しい発行ごとに再度現れる(`ocr-markdown-index` の安定 `id` 方式と異なり、
   このトピックは単一の最新レコードしか保持しないため、`updatedAt` そのものを冪等キーとして
   使う)。
+
+## 既存トピック: `drive-index`
+
+tc-storage が自分のドライブの読み込み可能ファイル一覧を、ワークスペース内部状態
+(スナップショット・フォルダ鍵)を直接読ませずに他アプリへ公開するためのトピック。
+
+- **書き手**: tc-storage(`src/app/useDriveIndexPublishEffect.ts`)。スナップショット/
+  フォルダ鍵が変わるたびに(デバウンス後)、および起動時に
+  `publishShared("drive-index", "", meta)` を呼ぶ。`cid` は常に `""` 固定で、
+  インデックス全体を `meta` にインラインする(`ocr-markdown-index` と同じ方針)。
+
+  ```ts
+  interface DriveIndexEntry {
+    id: string
+    name: string
+    mimeType: string
+    size: number
+    lastCid: string     // 暗号化 FileBundle の mistlib CID
+    path: string         // "Folder/Subfolder" のルートからのパス表示
+    passphrase: string   // FileBundle 復号鍵
+  }
+  interface DriveIndexMeta {
+    version: 1
+    updatedAt: string
+    files: DriveIndexEntry[]
+  }
+  ```
+
+  一覧に載るのは「削除されておらず、復号鍵が解決できるファイル」のみ(`tc-storage/src/storage/driveIndex.ts`
+  の `buildDriveIndex`)。
+- **読み手**: tc-travel(`src/lib/drive/reader.ts`)。`listDriveFiles()` で読み、
+  VRM インポートなど(`ARCameraScreen.tsx` 等)向けにファイルバイト列を
+  `loadDriveFileBytes()` で解決する。tc-travel は tc-storage のスナップショット/フォルダ鍵を
+  一切直接読まず、このインデックス経由のみでファイルへアクセスする。
+
+## 既存トピック: `character-index`
+
+tc-town のキャラクターロースターを、tc-town に直接依存せず他アプリへ公開するためのトピック。
+
+- **書き手**: tc-town(`src/lib/characterIndexPublisher.ts`)。キャラクター/ワールドの変更に
+  デバウンス後追従して(`schedulePublish`)、`publishShared("character-index", "", meta)`
+  を呼ぶ。`cid` は常に `""` 固定で、ロースター全体を `meta` にインラインする。
+
+  ```ts
+  interface CharacterIndexEntry {
+    id: string
+    name: string
+    summary: string        // 一行説明
+    personaPrompt: string  // 生成済みのシステムプロンプト(人格)全文
+    vrmChecksum?: string   // sha256 hex。同一オリジンの tc-vrm-viewer IndexedDB で解決
+    vrmCid?: string        // .vrm 生バイト列の mistlib CID(フォールバック/端末間共有用)
+    vrmFileName?: string
+    voiceModel?: string
+    voiceName?: string
+    updatedAt: string       // ISO 8601
+  }
+  interface CharacterIndexMeta {
+    v: 1
+    updatedAt: string
+    entries: CharacterIndexEntry[]
+  }
+  ```
+
+  `vrmChecksum`/`vrmCid` が無いエントリは persona-only(画像またはアバターなし)のキャラクターで、
+  読み手は VRM が存在しない前提のハンドリングが必要。VRM CID の充足(`storage_add` 経由)は
+  publish 自体をブロックしないベストエフォートのバックグラウンド処理。
+- **読み手**: tc-travel(`src/lib/town/characterIndex.ts`)。`loadTownCharacters()`/
+  `subscribeTownCharacters()` で読み、tc-town のキャラクターを VRM コンパニオン + AI ペルソナ
+  として取り込める(`AvatarScreen.tsx`)。フィールドごとに防御的にコアース/検証し、単一の
+  不正フィールドで一覧全体を落とさない。
+
+## 既存トピック: `folder-export`
+
+暗号化フォルダバンドル(`FolderBundle`)を、任意のドライブ実装アプリへエクスポートするための
+単一レコード・複数書き手トピック。
+
+- **書き手**: tc-pdf-viewer(`src/services/driveExport.js`、`FOLDER_EXPORT_TOPIC`)が最初の
+  書き手。tc-travel(`src/lib/drive/export.ts`)も同トピックへ書き込む2人目の書き手
+  (`note-article` と同様のパターン)。どちらも「フォルダ + ファイル群を mistlib の
+  `storage_add` でCID化した暗号化バンドル」を作り、そのCIDと以下の `meta` で
+  `publishShared("folder-export", folderCid, meta)` を呼ぶ。
+
+  ```ts
+  interface FolderExportMeta {
+    folderId: string
+    folderName: string
+    passphrase: string   // FolderBundle 復号鍵
+    fileCount: number
+    exportedAt: string    // ISO 8601
+  }
+  ```
+
+  単一レコードのトピックなので、後から発行したアプリのレコードが前の発行者のものを上書きする。
+  両書き手とも「変更が無くても、バス上の現在のレコードのCIDが自分の最終発行CIDと食い違って
+  いれば再発行する」処理を持つため、別アプリが上書きした後でも自分のフォルダを取りこぼさず
+  再公開できる。
+- **読み手**: tc-storage(`src/app/useFolderImportEffect.ts` + `src/storage/folderImport.ts`)。
+  起動時に1回読み、以後 `subscribeShared` で購読する。フォルダIDごとに最後に取り込んだCID
+  (`tc-storage-folder-import-cids-v1`)を記録して冪等に取り込み、既存の CRDT マージ機構
+  (`mergeSnapshots`)でワークスペースへ統合する。
 
 ## バージョニング方針
 
