@@ -54,6 +54,8 @@ tc-protocol はあくまで**仕様ドキュメントと参照用の型定義**�
   (CIDポインタ + BroadcastChannel通知)`sharedBus` の仕様
 - [docs/app-manifest.md](docs/app-manifest.md) : 各アプリが自己申告する起動状況/参加トピック
   マニフェスト `appManifest` の仕様
-- [reference/](reference/) : sharedBus/appManifest の正本(参照実装)。
+- [docs/llm-config.md](docs/llm-config.md) : LLM/TTS/STT の接続設定を共有する `llmConfig`
+  (`tc-shared-llm-config-v1`)の仕様
+- [reference/](reference/) : sharedBus/appManifest/llmConfig の正本(参照実装)。
   `scripts/sync-vendored.mjs` が各アプリへ配布する
 - [types/](types/) : 各アプリの値スキーマの TypeScript 型定義(参照用)
