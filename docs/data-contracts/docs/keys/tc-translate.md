@@ -5,10 +5,11 @@ mistlib 使用: **なし**(grep で `mistlib`/`storage_add`/`storage_get`/OPFS �
 
 | キー | スキーマ | 書き手 | 読み手 | 出典 |
 |---|---|---|---|---|
-| `tc-translate-provider-settings-v1` | `Partial<ProviderSettings>` | tc-translate | tc-translate | tc-translate/src/constants.ts:3; src/lib/storage.ts:29,42 |
+| `tc-translate-provider-settings-v1` | `{ connection: "api" \| "network"; networkProviderEnabled: boolean; visionPresetId: string }`(`LocalProviderSettings`) | tc-translate | tc-translate | tc-translate/src/constants.ts:3; src/lib/storage.ts:25-39 |
 | `tc-translate-voice-settings-v1` | `Partial<LegacyVoiceSettings>`(レガシー) | tc-translate | tc-translate | tc-translate/src/constants.ts:5; src/lib/storage.ts:47 |
-| `tc-translate-tts-settings-v1` | `Partial<TtsSettings> \| null` | tc-translate | tc-translate | tc-translate/src/constants.ts:6; src/lib/storage.ts:55,81 |
-| `tc-translate-stt-settings-v1` | `Partial<SttSettings> \| null` | tc-translate | tc-translate | tc-translate/src/constants.ts:7; src/lib/storage.ts:86,105 |
+| `tc-translate-tts-settings-v1` | `{ engine: "api" \| "network" \| "browser" }`(`LocalTtsSettings`) | tc-translate | tc-translate | tc-translate/src/constants.ts:6; src/lib/storage.ts:45-58 |
+| `tc-translate-stt-settings-v1` | `{ engine: "api" \| "network"; micDeviceId: string }`(`LocalSttSettings`) | tc-translate | tc-translate | tc-translate/src/constants.ts:7; src/lib/storage.ts:60-74 |
+| `tc-shared-llm-config-v1` | `SharedLlmConfigV1`(接続/モデル/TTS・STT/AI Networkルーム。詳細は [../llm-config.md](../llm-config.md)) | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-translate/src/lib/llmConfig.ts。詳細は [../llm-config.md](../llm-config.md) |
 | `tc-translate-history-v1` | `TranslationHistoryEntry[]`(最大件数あり) | tc-translate | tc-translate, **tc-note (クロスアプリ読み取り、インポート機能)** | tc-translate/src/constants.ts:8; src/lib/storage.ts:147,169 |
 | `tc-translate-target-language-v1` | `string`(言語コード) | tc-translate | tc-translate | tc-translate/src/constants.ts:9; src/lib/storage.ts:109-114 |
 | `tc-translate-native-language-v1` | `string`(言語コード) | tc-translate | tc-translate | tc-translate/src/constants.ts:10; src/lib/storage.ts:118-123 |
@@ -18,6 +19,15 @@ mistlib 使用: **なし**(grep で `mistlib`/`storage_add`/`storage_get`/OPFS �
 
 ## 特記事項
 
+- **共有LLM設定(`tc-shared-llm-config-v1`)への移行**: `baseUrl`/`apiKey`/`model`/`temperature`
+  は元々 `tc-translate-provider-settings-v1`/`-tts-settings-v1`/`-stt-settings-v1` が持っていたが、
+  `tc-translate/src/hooks/useSharedLlmConfig.ts` の一度きりの移行処理でこれら3キーの
+  移行前の形から共有キーへ移され(merge-never-delete)、上記3キーには
+  connection/トグル/エンジン選択などのローカル専用フィールドのみが残る。tc-translate は
+  provider/preset/defaultPresetId/tts/stt/`network.roomId` をすべて読み書きするフル参加者。
+  `visionPresetId` は「機能別プリセット参照」の実例で、画像入力を伴う翻訳(vision)専用に
+  preset を固定したい場合に使い、通常のテキスト翻訳は `defaultPresetId` を使う
+  (契約の「アプリローカル層の指針」参照、[../llm-config.md](../llm-config.md))。
 - `tc-translate-history-v1` は tc-note が読み取り専用でインポートに使う
   クロスアプリキー。[tc-note.md](tc-note.md) の特記事項も参照。tc-translate 側で
   `TranslationHistoryEntry` の形を変える場合は tc-note の `importTranslations.ts` への

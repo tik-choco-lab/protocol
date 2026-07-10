@@ -12,7 +12,8 @@ tc-news はノート/記事系トピックのパブリッシャーであり、�
 | キー | スキーマ | 書き手 | 読み手 | 出典 |
 |---|---|---|---|---|
 | `tc-news:app-settings` | `AppSettings`(下記) | tc-news | tc-news | tc-news/src/lib/appSettings.ts:8 |
-| `tc-news:provider-settings` | LLMプロバイダ設定(複数プロファイル、TTS/AIネットワークトグル、orchestrator/workerロール割当) | tc-news | tc-news | tc-news/src/lib/llmSettings.ts:14 |
+| `tc-news:provider-settings` | `{ ttsEnabled: boolean; networkConsumerEnabled: boolean; orchestratorPresetId: string; workerPresetId: string }`(`ProviderSettings`) | tc-news | tc-news | tc-news/src/lib/llmSettings.ts:33-42 |
+| `tc-shared-llm-config-v1` | `SharedLlmConfigV1`(接続/モデル/TTS・STT/AI Networkルーム。詳細は [../llm-config.md](../llm-config.md)) | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-news/src/lib/llmConfig.ts。詳細は [../llm-config.md](../llm-config.md) |
 | `tc-news:feeds` | `FeedSource[]`(RSS/Atomフィード購読設定) | tc-news | tc-news | tc-news/src/lib/feedStore.ts:5 |
 | `tc-news:feed-items` | `FeedItem[]`(取得済みフィード項目、上限500件) | tc-news | tc-news | tc-news/src/lib/feedStore.ts:6 |
 | `tc-news:articles` | `NewsArticle[]`(自分が生成した記事、上限200件) | tc-news | tc-news | tc-news/src/lib/articleStore.ts:8 |
@@ -73,6 +74,22 @@ tc-news 既定のプライベートルーム(`roomId: "tc-news"`)の両方で共
 
 ## 特記事項
 
+- **共有LLM設定(`tc-shared-llm-config-v1`)への移行**: 接続情報(baseUrl/apiKey)とモデル設定
+  (model/temperature/reasoningEffort)は元々 `tc-news:provider-settings` の `profiles`(複数
+  プロファイル)配列と `tts` オブジェクトが直接持っていたが、`tc-news/src/lib/llmSettings.ts`
+  の `migrateLegacySettings()` が起動時に旧形状(`profiles` の存在で検出)を一度だけ検出し、
+  各プロファイルを `ensureProvider`/`ensurePreset` で(id を保持したまま)共有キーへ追加、
+  `defaultPresetId`/`tts`/`network.roomId` は空のときのみ設定(merge-never-delete)した上で
+  `tc-news:provider-settings` を新しい縮小形状(`ttsEnabled`/`networkConsumerEnabled`/
+  `orchestratorPresetId`/`workerPresetId`)で再保存する。この移行に伴い、旧 `LlmProfile`/
+  `TtsSettings` 型はコードベースから削除済み。
+- `orchestratorPresetId`/`workerPresetId` は「アプリローカル層の指針」
+  ([../llm-config.md](../llm-config.md))が挙げる役割別プリセット参照の実例で、編集部生成の
+  orchestrator/worker それぞれに使う preset を指す。空文字は `resolvePreset` のフォールバック
+  で `defaultPresetId` に従う。
+- tc-news は `tc-shared-llm-config-v1` の provider/preset/defaultPresetId/tts/`network.roomId`
+  を読み書きするフル参加者。TTS は `lib/tts.ts` が `resolveVoice(config, "tts")` で解決する
+  (`ttsEnabled` が false ならブラウザ内蔵TTSにフォールバック)。stt は使わない。
 - 全ローカル専用キーが `tc-news:<name>` 規約(コロン区切り)で統一されている
   ([../conventions.md](../conventions.md) が推奨する新規キー規約)。
 - DID identity のみ `tc-news-did-identity-v1`(ハイフン区切り + `v1` サフィックス)という

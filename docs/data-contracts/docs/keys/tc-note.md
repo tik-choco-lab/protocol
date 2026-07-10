@@ -7,7 +7,8 @@ mistlib 使用: あり(`tc-note/src/lib/mistlib.ts`、`storage_add`/`storage_get
 | `tc-note:index` | `NoteMeta[]`(下記) | tc-note | tc-note | tc-note/src/lib/mistlib.ts:12,37-50 |
 | `tc-note:folders` | `Folder[]`(下記) | tc-note | tc-note | tc-note/src/lib/mistlib.ts:13,55-63 |
 | `tc-note:node-id` | `string`(mistlib ノードID) | tc-note | tc-note | tc-note/src/lib/mistlib.ts:14,67-70 |
-| `tc-note:llm-settings` | LLM プロバイダ設定(OpenAI API 互換) | tc-note | tc-note | tc-note/src/lib/llmSettings.ts:5 |
+| `tc-note:llm-settings` | `{ embeddingModel: string \| null; connection: "api" \| "network"; providerModeEnabled: boolean }`(下記) | tc-note | tc-note | tc-note/src/lib/llmSettings.ts:23-31 |
+| `tc-shared-llm-config-v1` | `SharedLlmConfigV1`(接続/モデル/TTS・STT/AI Networkルーム。詳細は [../llm-config.md](../llm-config.md)) | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-note/src/lib/llmConfig.ts。詳細は [../llm-config.md](../llm-config.md) |
 | `tc-note:collab-user` | コラボ用ユーザー情報 | tc-note | tc-note | tc-note/src/hooks/useCollab.ts:13 |
 | `tc-shared-ocr-markdown-index-v1` | `SharedRecord`(共有バス、[../SHARED_BUS.md](../SHARED_BUS.md)参照) | tc-pdf-viewer | **tc-note (読み取り専用)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts; tc-pdf-viewer/src/services/storage.js |
 | `mist_ocr_markdown_index` | `Record<string, string \| { content: string }>`(ファイル名→CID or 本文) | tc-pdf-viewer | **tc-note (読み取り専用、フォールバック)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:10; tc-pdf-viewer/src/services/storage.js |
@@ -37,8 +38,31 @@ interface Folder {
 }
 ```
 
+## LlmSettings
+
+```ts
+type LlmConnection = "api" | "network";
+
+interface LlmSettings {
+  embeddingModel: string | null;      // 未配線(将来のembedding用途向けに保持のみ)
+  connection: LlmConnection;          // チャットパネルの接続経路
+  providerModeEnabled: boolean;       // trueならAI Networkルームへprovider役として応答
+}
+```
+
+`providers`/`activeProviderId`/`llmModel`/`networkRoomId` は
+`tc-shared-llm-config-v1` へ一度だけ移行済み(下記特記事項参照)で、この型からは消えている。
+
 ## 特記事項
 
+- **共有LLM設定(`tc-shared-llm-config-v1`)への移行**: 旧 `tc-note:llm-settings` が直接保持していた
+  `providers`/`activeProviderId`/`llmModel`/`networkRoomId` は、`tc-note/src/lib/llmSettings.ts` の
+  `migrateLegacyRecord` により初回読み込み時に一度だけ共有キーへ移行される(`ensureProvider`/
+  `ensurePreset` で merge-never-delete、`defaultPresetId`/`network.roomId` は空のときのみ設定)。
+  移行後、このキーには `embeddingModel`/`connection`/`providerModeEnabled` のみが残る。tc-note は
+  `defaultPresetId` のみを参照する**単一プリセット消費者**であり、tc-pdf-viewer の `taskPresetIds`
+  や tc-news の役割別 preset のような機能別 presetId マップは持たない。契約の詳細は
+  [../llm-config.md](../llm-config.md)。
 - **キー名衝突**: `tc-note/src/lib/importTranslations.ts` の `HISTORY_KEY` が
   `"tc-translate-history-v1"` というハードコード文字列で、tc-translate が同じ用途で
   使っているキー(`tc-translate/src/constants.ts` の `historyStorageKey`)と**完全一致**して
