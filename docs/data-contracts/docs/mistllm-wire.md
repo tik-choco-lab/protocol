@@ -13,6 +13,17 @@ consumer(LLM を利用する側)と provider(LLM を提供する側)がピア同
 両実装はフィールドレベルで一致するよう保守されている。本ドキュメントは実装から起こした
 仕様であり、実装が正、本ドキュメントはそれに追従する。
 
+### 第2の実装: mistai ライブラリ
+
+`mistai/src/protocol.ts`(TypeScript、`encode`/`decode`)は tc-mistllm の
+`protocol.ts`/`protocol.rs` と互換の `v: 1` ワイヤをやり取りするもう一つの実装。
+consumer/provider それぞれの上位ロジック(`mistai/src/consumer.ts` 相当の
+`ConsumerClient`、`mistai/src/provider.ts`)が tc-mistllm の consumer/provider の役割を担う。
+tc-translate は mistlib ノードを注入した `@tik-choco/mistai` の `ConsumerClient` 経由でこの
+ワイヤに参加する(`tc-translate/src/lib/network.ts`。`ConsumerClient` の生成・
+`nodeIdStorageKey` の指定・チャット/音声リクエストの発行はいずれもこのファイル経由)。
+mistai は本セクション基本メッセージ種別に加え、下記「音声拡張」も実装する。
+
 ## 概要
 
 - 全メッセージは `v: 1` の JSON オブジェクトで、UTF-8 バイト列にエンコードして
@@ -111,6 +122,84 @@ Raftトラフィックはこの `ProtocolMessage` エンベロープに乗せて
 
 web版(`tc-mistllm/src/lib/protocol.ts`)は `raft_message` のエンコード/デコードのみ対応し、
 Raft本体のロジック(スケジューラー)は未実装。
+
+## 音声拡張 (Voice extension)
+
+mistai ライブラリ(`mistai/src/protocol.ts`)は、同じ `v: 1` エンベロープの上に音声合成
+(TTS)・音声認識(STT)のための5つのメッセージ種別を追加する。**tc-mistllmのコア実装
+(`tc-mistllm/src/lib/protocol.ts`/`protocol.rs`)はこれらの型を実装していない**
+(`MESSAGE_TYPES`/`msg_type` の一致セットに含まれない)。したがって送信側はこれらの
+メッセージに対する受信側の対応を仮定してはならない — 相手が tc-mistllm 単体か mistai
+搭載ピアかを判別する専用のネゴシエーション機構は無く(`provider_hello.models` は
+LLMモデル一覧のみを扱う)、未対応ピアは下記「未知の型の扱い」のとおり黙って
+メッセージを破棄する。
+
+| `type` | 送信方向 | 用途 |
+|---|---|---|
+| `tts_request` | consumer → provider | 音声合成(テキスト→音声)のリクエスト |
+| `tts_response` | provider → consumer | 合成音声の応答(順序付きチャンク配信) |
+| `stt_request` | consumer → provider | 音声認識(音声→テキスト)のリクエスト(順序付きチャンク送信) |
+| `stt_response` | provider → consumer | 認識結果テキストの応答 |
+| `voice_error` | provider → consumer | tts_request/stt_request 処理中のエラー通知 |
+
+### `tts_request` / `tts_response`
+
+| フィールド | 型 | 必須 | 意味 |
+|---|---|---|---|
+| `v` | `1` | 必須 | プロトコルバージョン |
+| `type` | `"tts_request"` \| `"tts_response"` | 必須 | メッセージ種別 |
+| `id` | `string`(非空) | 必須 | リクエストID。応答はこの `id` で相関付けられる |
+| `text` | `string`(`tts_request` のみ) | 必須 | 合成対象テキスト |
+| `model` | `string`(`tts_request` のみ) | 任意 | 使用モデル名の指定 |
+| `voice` | `string`(`tts_request` のみ) | 任意 | 声質の指定 |
+| `seq` | `number`(0以上の整数、`tts_response` のみ) | 必須 | リクエストIDごとに0始まりで単調増加する連番(`llm_response_chunk.seq` と異なり必須) |
+| `data` | `string`(`tts_response` のみ) | 必須 | 音声データの base64 サブチャンク |
+| `last` | `boolean`(`tts_response` のみ) | 必須 | 最終チャンクかどうか |
+| `mime` | `string`(`tts_response` のみ、非空) | 必須 | 音声の MIME タイプ(最初のチャンクの値を正とする) |
+
+consumer(`mistai/src/voice-consumer.ts` の `VoiceConsumerService`)は `seq` が期待値
+(`nextSeq`)と一致しないチャンクを受け取ると即座にリクエストを失敗させる
+(`llm_response_chunk` のようなバッファリング再整列は行わない — 順序どおりの到着を
+前提とする、より厳格な検証)。受信済み base64 の合計サイズ・リクエストの
+タイムアウトにも上限があり、超過時はエラーとして扱う。
+
+### `stt_request` / `stt_response`
+
+| フィールド | 型 | 必須 | 意味 |
+|---|---|---|---|
+| `v` | `1` | 必須 | プロトコルバージョン |
+| `type` | `"stt_request"` \| `"stt_response"` | 必須 | メッセージ種別 |
+| `id` | `string`(非空) | 必須 | リクエストID |
+| `seq` | `number`(0以上の整数、`stt_request` のみ) | 必須 | 0始まりで単調増加する連番 |
+| `data` | `string`(`stt_request` のみ) | 必須 | 音声データの base64 サブチャンク |
+| `last` | `boolean`(`stt_request` のみ) | 必須 | 最終チャンクかどうか |
+| `mime` | `string`(`stt_request` のみ、非空) | 必須 | 音声の MIME タイプ |
+| `model` | `string`(`stt_request` のみ) | 任意 | 使用モデル名の指定(先頭チャンクにのみ乗る) |
+| `fileName` | `string`(`stt_request` のみ) | 任意 | 元ファイル名(先頭チャンクにのみ乗る) |
+| `text` | `string`(`stt_response` のみ) | 必須 | 認識結果テキスト |
+
+provider(`mistai/src/voice-provider.ts` の `VoiceProviderService`)も `seq` の順序を
+検証し、期待値とずれたチャンクを受け取った時点でそのアップロードを破棄して
+`voice_error` を返す。同時に受け付けるアップロード本数・合計サイズにも上限があり、
+超過時は新規アップロードを `voice_error` で拒否する(未信頼ピア前提のリソース保護)。
+
+### `voice_error`
+
+| フィールド | 型 | 必須 | 意味 |
+|---|---|---|---|
+| `v` | `1` | 必須 | プロトコルバージョン |
+| `type` | `"voice_error"` | 必須 | メッセージ種別 |
+| `id` | `string`(非空) | 必須 | 対応する `tts_request`/`stt_request` の `id` |
+| `message` | `string` | 必須 | エラー内容 |
+
+### 未知の型の扱い
+
+音声拡張の型を実装しないピア(現状の tc-mistllm コア実装を含む)がこれらの `type` を
+受信した場合の挙動は、本ドキュメント冒頭の「概要」に定義済みの一般規則がそのまま適用
+される: `type` が未知の値であればメッセージ全体を破棄する(`decode`/`decode_message` は
+`null`/`None` を返す。実装ごとの特別扱いは無い)。音声拡張に固有のネゴシエーションや
+機能フラグは存在しないため、送信側は相手が対応しているという前提を持たず、
+実装依存(implementation-defined)の挙動として扱うこと。
 
 ## ストリーミングと seq 並べ替え
 

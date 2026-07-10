@@ -13,6 +13,7 @@ mistlib 使用: あり(`tc-note/src/lib/mistlib.ts`、`storage_add`/`storage_get
 | `mist_ocr_markdown_index` | `Record<string, string \| { content: string }>`(ファイル名→CID or 本文) | tc-pdf-viewer | **tc-note (読み取り専用、フォールバック)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:10; tc-pdf-viewer/src/services/storage.js |
 | `mist_translated_markdown_index` | `Record<string, Record<string, string>>`(ファイル名→言語→CID) | tc-pdf-viewer | **tc-note (読み取り専用)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:11; tc-pdf-viewer/src/services/storage.js |
 | `tc-translate-history-v1` | `TranslationHistoryEntry[]` | tc-note (読み取り専用, インポート機能), tc-translate | tc-translate | tc-note/src/lib/importTranslations.ts:9 |
+| `tc-shared-note-article-v1` | `SharedRecord`(`meta` は `NoteArticleMeta`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note, tc-news | **tc-chat(クロスアプリ読み取り)** | tc-note/src/lib/shareArticle.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `note-article` トピック |
 
 ## NoteMeta
 
@@ -50,3 +51,9 @@ interface Folder {
   最小移行済み: `readShared("ocr-markdown-index")` を先に試し、レコードが無い/不正な場合に
   のみ `mist_ocr_markdown_index` を直接読む。`subscribePdfViewerDocumentsChanged`
   (`importDocument.ts`)で更新通知も購読できる。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)。
+- `tc-shared-note-article-v1` は tc-note のノートを tc-chat のボードへ「記事」として
+  取り込むための共有バストピック(`note-article`)。書き手は tc-note の
+  `shareArticle.ts`(`shareNoteAsArticle`)に加え、tc-news の `chatShare.ts`
+  (`publishArticleToChat`)も同トピックへ書き込む。両者の `meta` の違い(インライン本文の
+  扱い)を含む契約の詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の「既存トピック:
+  `note-article`」を参照。
