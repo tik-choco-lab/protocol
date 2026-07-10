@@ -128,14 +128,22 @@ sharedBus 各トピックのような高頻度な通知ファンアウトは不�
 
 `tc-shared-llm-config-v1` が持つのは「どこに繋ぐか」「どう呼ぶか」という共有可能な設定までで、
 「どの機能でどの preset を使うか」というアプリ固有のマッピングはこの契約の対象外。各アプリは
-自分のローカルキーに `presetId` への参照を持たせて管理すること。例:
+自分のローカルキーに `presetId` への参照を持たせて管理すること。参加7アプリではいずれも
+実装済みで、以下がその実例:
 
-- **tc-town**: キャラクターごとに使う preset を、tc-town 自身のローカル設定でキャラID→`presetId`
-  のマッピングとして保持する。
-- **tc-news**: orchestrator 用と worker 用で別の preset を使う場合、tc-news 自身のローカル設定に
-  役割ごとの `presetId` を保持する。
-- **tc-pdf-viewer**: OCR/翻訳など、タスクの種類ごとに使う preset を tc-pdf-viewer 自身のローカル
-  設定に `presetId` として保持する。
+- **tc-town**: `tc-town:characters` の各 `Character.llmProfileId`(フィールド名は移行前の
+  `LlmProfile.id` 参照だった頃のまま温存)が `ModelPresetV1.id` を指す。キャラID→`presetId`
+  のマッピングをキャラクターレコード自体に埋め込む形。詳細は
+  [keys/tc-town.md](keys/tc-town.md)。
+- **tc-news**: `tc-news:provider-settings` の `orchestratorPresetId`/`workerPresetId` が
+  編集部生成パイプラインの orchestrator 役/worker 役それぞれの preset 参照。空文字は
+  `defaultPresetId` に従う。詳細は [keys/tc-news.md](keys/tc-news.md)。
+- **tc-pdf-viewer**: `tc-pdf-viewer-ai-settings-v1` の `taskPresetIds: { explain, translate,
+  chat, ocr }` がタスク種別ごとの preset 参照。詳細は
+  [keys/tc-pdf-viewer.md](keys/tc-pdf-viewer.md)。
+- **tc-translate**: `tc-translate-provider-settings-v1` の `visionPresetId` が画像入力を伴う
+  翻訳(vision)専用の preset 参照。通常のテキスト翻訳は `defaultPresetId` を使う。詳細は
+  [keys/tc-translate.md](keys/tc-translate.md)。
 
 こうすることで、`tc-shared-llm-config-v1` 自体は「利用可能な接続とモデルのカタログ」という
 薄い共有層に留まり、各アプリの機能設計に引きずられない。

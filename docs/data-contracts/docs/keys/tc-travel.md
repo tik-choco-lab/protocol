@@ -18,7 +18,8 @@ mistlib 使用: あり(`tc-travel/src/lib/mistNode.ts`。P2Pルーム参加と�
 | `tc-travel:joinedRooms` | 参加済みルーム一覧 | tc-travel | tc-travel | tc-travel/src/lib/personal.ts:11 |
 | `tc-travel:streak` | 連続参加ストリーク | tc-travel | tc-travel | tc-travel/src/lib/personal.ts:12 |
 | `tc-travel:journey` | 旅の記録 | tc-travel | tc-travel | tc-travel/src/lib/personal.ts:13 |
-| `tc-travel:aiCompanion` | AIコンパニオン設定 | tc-travel | tc-travel | tc-travel/src/lib/ai/aiSettings.ts:16 |
+| `tc-travel:aiCompanion` | `{ roomId: string; model?: string; voice?: string; persona?: string; ttsEnabled: boolean }`(`AiCompanionSettings`) | tc-travel | tc-travel | tc-travel/src/lib/ai/aiSettings.ts:18-25 |
+| `tc-shared-llm-config-v1` | `SharedLlmConfigV1`(接続/モデル/TTS・STT/AI Networkルーム。tc-travelは`network.roomId`のみ利用。詳細は [../llm-config.md](../llm-config.md)) | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-travel/src/lib/drive/llmConfig.ts。詳細は [../llm-config.md](../llm-config.md) |
 | `tc-travel:nodeId` | mistlib ノードID | tc-travel | tc-travel | tc-travel/src/lib/mistNode.ts:12 |
 | `tc-travel:onboarding-done` | オンボーディング完了フラグ | tc-travel | tc-travel | tc-travel/src/lib/onboarding.ts:8 |
 | `tc-travel:language` | UI言語設定 | tc-travel | tc-travel | tc-travel/src/lib/i18n.ts:31 |
@@ -45,6 +46,14 @@ BroadcastChannel `tc-shared-bus-v1`)を vendor コピーしている
 
 ## 特記事項
 
+- **`tc-shared-llm-config-v1` の限定利用**: tc-travel は7参加アプリの1つだが、provider/preset/
+  defaultPresetId/tts/stt は使わない(AIコンパニオンの接続情報自体は `tc-travel:aiCompanion` の
+  `roomId`/`model`/`voice`/`persona` がローカルに持つ)。使うのは `network.roomId` のみで、
+  `tc-travel/src/lib/ai/aiSettings.ts` の `resolveAiRoomId()` がローカルの `roomId`(非空なら
+  優先)→共有 `network.roomId` の順にフォールバックして実効ルームを決める。また
+  `loadAiSettings()`/`saveAiSettings()` はローカル `roomId` が非空かつ共有側が未設定なら
+  `seedSharedRoomId()` で共有キーへ片方向シード書き込みする(merge-never-delete、
+  共有側が既に設定済みなら上書きしない)。
 - ローカル専用キーはおおむね `tc-travel:<name>` 規約(コロン区切り)。
 - `tc-travel:driveExport` は旧キー `tc-travel:tcStorageExport` からの移行を持つ
   (`src/lib/drive/export.ts:17` の `LEGACY_STATE_KEY`)。

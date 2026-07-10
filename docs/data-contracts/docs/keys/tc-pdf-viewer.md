@@ -14,17 +14,38 @@ mistlib 使用: あり(`tc-pdf-viewer/src/lib/mistlib/`、`storage_add`/`storage
 | `mist_explanations_index` | 未詳細調査(AI 解説キャッシュとみられる) | tc-pdf-viewer | tc-pdf-viewer | tc-pdf-viewer/src/utils/mist.js |
 | `mist_last_lang` | `string`(最後に使用した翻訳言語) | tc-pdf-viewer | tc-pdf-viewer | tc-pdf-viewer/src/utils/mist.js |
 | `mist_last_pdf` | `string`(最後に開いた PDF の識別子) | tc-pdf-viewer | tc-pdf-viewer | tc-pdf-viewer/src/utils/mist.js |
-| `ai_settings` | AI 設定(下記) | tc-pdf-viewer | tc-pdf-viewer | tc-pdf-viewer/src/services/ai.js:127-154 |
+| `tc-pdf-viewer-ai-settings-v1` | `{ backend: 'http' \| 'mistllm'; networkProviderEnabled: boolean; taskPresetIds: { explain, translate, chat, ocr }; promptTemplate: string; targetLanguages: string[] }`(下記) | tc-pdf-viewer | tc-pdf-viewer | tc-pdf-viewer/src/services/ai.js:32-46 |
+| `tc-shared-llm-config-v1` | `SharedLlmConfigV1`(接続/モデル/AI Networkルーム。tts/stt不使用。詳細は [../llm-config.md](../llm-config.md)) | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-pdf-viewer/src/services/llmConfig.js。詳細は [../llm-config.md](../llm-config.md) |
 | `tc-shared-folder-export-v1` | `SharedRecord`(`meta` は `FolderExportMeta`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-pdf-viewer, **tc-travel(2人目の書き手)** | **tc-storage(クロスアプリ読み取り)** | tc-pdf-viewer/src/services/driveExport.js。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `folder-export` トピック |
 
-## ai_settings (概要)
+## tc-pdf-viewer-ai-settings-v1 (概要)
 
 `getAiSettings()`/`saveAiSettings()`/`normalizeAiSettings()` (tc-pdf-viewer/src/services/ai.js)
-で正規化される。ベース URL・API キー・モデル選択などプロバイダ設定を保持。詳細フィールドは
+で正規化される。接続情報(baseUrl/apiKey/model)は `tc-shared-llm-config-v1` へ移った後なので、
+このキーが持つのは「どの task にどの preset を使うか」(`taskPresetIds`、AI_TASKS =
+`['explain', 'translate', 'chat', 'ocr']` のタスク別プリセット参照。空文字は
+`resolvePreset` のフォールバックで `defaultPresetId` に従う)と、バックエンド選択・プロンプト
+テンプレート・翻訳先言語一覧といった純粋にアプリローカルなプリファレンスのみ。
+`getSharedLlmConfig`/`resolveTaskTarget` 等の共有キーアクセサは同じ `ai.js` が
+`./llmConfig.js` 経由で提供する。詳細フィールドは
 `tc-pdf-viewer/src/services/ai.js` の `DEFAULT_SETTINGS`/`normalizeAiSettings` を参照。
 
 ## 特記事項
 
+- **`ai_settings`(レガシー、廃止)は `tc-pdf-viewer-ai-settings-v1` + 共有キーへ一度だけ移行**:
+  旧 `ai_settings`(baseUrl/apiKey/タスク別モデル名を1レコードで保持)は
+  `tc-pdf-viewer/src/services/ai.js` の `migrateLegacyAiSettings()` が起動時に検出し、
+  登録済みの各 baseUrl を `ensureProvider` で、タスクごとにモデルが設定済みならその組を
+  `ensurePreset` で `tc-shared-llm-config-v1` へ追加した上で(merge-never-delete、
+  一度も編集されていない既定の OpenAI エントリはノイズとしてスキップ)、タスク→新しい
+  presetId のマッピングを `tc-pdf-viewer-ai-settings-v1` へ書き込み、最後に
+  `localStorage.removeItem('ai_settings')` で旧キーを削除する(read-then-removeItem の
+  一度きりの移行、以後 `ai_settings` は存在しない)。旧 `mistllmRoomId` は共有キーの
+  `network.roomId` へ(空のときのみ)移行される。
+- tc-pdf-viewer は `tc-shared-llm-config-v1` の provider/preset/defaultPresetId/`network.roomId`
+  を読み書きするが、tts/stt は使わない(OCR/翻訳/チャット/解説はすべてテキスト系タスクの
+  ため)。`taskPresetIds` は「アプリローカル層の指針」([../llm-config.md](../llm-config.md))
+  が挙げるタスク別プリセット参照の実例。
 - `mist_ocr_markdown_index` の値は CID 文字列と `{ content: string }` オブジェクトの
   **両方の形式が存在する**(tc-note 側の importDocument.ts が両方をハンドリングしている
   ことから、CID → 本文の移行が進行中/混在している可能性が高い)。新規キー読み取り実装は
