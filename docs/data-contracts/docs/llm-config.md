@@ -99,6 +99,19 @@ TTS/STT 専用のエンドポイントを使いたい場合のみ `providerId` �
 
 いずれも例外を投げず、解決できない場合は `null` を返す。
 
+## mistllm-wire への橋渡し
+
+`resolvePreset` が返す `ResolvedLlmTargetV1.model` は、そのまま
+[mistllm-wire.md](mistllm-wire.md) の `llm_request.model` に載せてよい(両者とも型は
+`string`)。consumer アプリは preset 解決までをこの契約(llm-config)で行い、解決した
+`model` 名を wire メッセージに橋渡しするだけでよく、それ以上の変換は不要。
+
+本契約の責務はローカル設定層での解決までであり、載せた `model` を実際に相手 provider が
+扱えるかどうかの判定はこの契約の対象外: provider が要求 `model` に対応しているかは
+mistllm-wire 側のマッチング(`provider_hello.models` との突き合わせ、
+[mistllm-wire.md](mistllm-wire.md)「consumer 側の provider 選択手順」参照)と、
+対応していない場合の上流エラー伝播(`llm_error`)によって扱われる。
+
 ## LWW(last-write-wins)
 
 同一オリジンの複数アプリ(・複数タブ)が同じキーへ書き込みうるため、衝突解決は
@@ -175,6 +188,8 @@ localStorage キーを直読みする一覧)には**載せない**。これは `
 - tc-town
 - tc-travel
 - tc-mistllm
+- tc-books
+- tc-lingo
 
 ## reference 実装 / vendor 運用
 
@@ -229,8 +244,23 @@ snake_case で採用する。
 | `defaultPresetId` | `ai.default_preset_id` |
 | `network.roomId` | `ai.room_id`(既存フィールドが兼任) |
 | `tts`/`stt` | なし(音声非対応、`voice_error` で応答) |
+| (共有 preset の選択。本契約側に対応フィールドなし) | `ai.advertised_models`(`string[]`) |
 
 レガシーの旧フラットフィールド(`ai.upstream_url`/`upstream_api_key`/`default_model`/
 `temperature`)は読み込み時に provider+preset の組(id `"default"`)へ一度だけ移行し
 (冪等・merge-never-delete、本契約の「マイグレーション規則」と同方針)、保存後は
 旧フィールドを落とす。
+
+`ai.advertised_models` は [mistllm-wire.md](mistllm-wire.md) の
+`provider_hello.models`(「共有対象として明示的に選択した preset の広告名のみ」を
+広告する義務、上記「models(広告名 = ラベル規約)」参照)に対応する mistl 側の設定で、
+**「広告する preset id の配列」**である(2026-07-23 に mistl 側で再定義・修正実装中)。
+旧形式では `ai.presets[].model` と同じ形の生モデル id をそのまま並べる配列だったが、
+この形では上流の全モデルをフィルタなしで広告してしまう(=未選択モデルの露出)ケースと
+区別がつかず、mistllm-wire.md の広告義務に違反していた。再定義後は要素を preset id
+として解釈し、`ai.presets[].id` と一致する preset のみを `provider_hello.models` へ
+その preset の広告名で広告する。旧形式(生モデル id 配列)の設定ファイルは、読み込み時に
+`model` が一致する preset の id へ要素ごとに一度だけ自動 migration する
+(該当する preset が無い生モデル id は破棄する。冪等・merge-never-delete)。
+`ai.advertised_models` が空または未設定の場合は `models` フィールド自体を省略する
+(上記 mistllm-wire.md の規約どおり)。

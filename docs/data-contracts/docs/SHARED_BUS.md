@@ -1,6 +1,6 @@
 # 共有バス(sharedBus)仕様
 
-tc-note / tc-storage / tc-pdf-viewer / tc-translate / tc-chat / tc-news / tc-town / tc-travel が
+tc-note / tc-storage / tc-pdf-viewer / tc-translate / tc-chat / tc-news / tc-town / tc-travel / tc-books / tc-lingo が
 同一オリジンで動く前提を活かし、「CID ポインタを
 localStorage に置き、BroadcastChannel で変更を通知する」共有バスを提供する仕様。
 tc-vrm-viewer は `SharedAppName` の一員として型上は予約済みだが、現時点ではまだこのファイルを
@@ -40,7 +40,7 @@ interface SharedRecord {
   updatedAt: string;
   /** 発行元アプリ */
   from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-translate" | "tc-chat" | "tc-news"
-      | "tc-town" | "tc-travel" | "tc-vrm-viewer";
+      | "tc-town" | "tc-travel" | "tc-vrm-viewer" | "tc-books" | "tc-lingo";
 }
 ```
 
@@ -53,7 +53,7 @@ interface SharedBusMessage {
   topic: string;
   cid: string;
   from: "tc-note" | "tc-storage" | "tc-pdf-viewer" | "tc-translate" | "tc-chat" | "tc-news"
-      | "tc-town" | "tc-travel" | "tc-vrm-viewer";
+      | "tc-town" | "tc-travel" | "tc-vrm-viewer" | "tc-books" | "tc-lingo";
   updatedAt: string;
 }
 ```
@@ -98,9 +98,11 @@ function subscribeShared(topic: string, callback: (record: SharedRecord) => void
 | tc-news | `tc-news/src/lib/sharedBus.ts` | TypeScript |
 | tc-town | `tc-town/src/lib/sharedBus.ts` | TypeScript |
 | tc-travel | `tc-travel/src/lib/drive/sharedBus.ts` | TypeScript |
+| tc-books | `tc-books/src/lib/sharedBus.ts` | TypeScript |
+| tc-lingo | `tc-lingo/src/lib/sharedBus.ts` | TypeScript |
 
-8ファイルは `APP_NAME` 定数(vendor 先アプリ名)以外、実装をできる限り同一に保つ。
-編集する場合は8ファイルすべてに反映すること。各ファイル冒頭のヘッダコメントに
+10ファイルは `APP_NAME` 定数(vendor 先アプリ名)以外、実装をできる限り同一に保つ。
+編集する場合は10ファイルすべてに反映すること。各ファイル冒頭のヘッダコメントに
 この同期義務と契約バージョンを明記してある。
 
 正本(参照実装)は [reference/sharedBus.ts](../reference/sharedBus.ts) /
@@ -286,7 +288,9 @@ tc-town のキャラクターロースターを、tc-town に直接依存せず�
 
   `vrmChecksum`/`vrmCid` が無いエントリは persona-only(画像またはアバターなし)のキャラクターで、
   読み手は VRM が存在しない前提のハンドリングが必要。VRM CID の充足(`storage_add` 経由)は
-  publish 自体をブロックしないベストエフォートのバックグラウンド処理。
+  publish 自体をブロックしないベストエフォートのバックグラウンド処理。`vrmChecksum` の解決先
+  (tc-vrm-viewer と共有の IndexedDB VRMモデルライブラリ)の契約は
+  [vrm-model-library.md](vrm-model-library.md) を参照。
 - **読み手**: tc-travel(`src/lib/town/characterIndex.ts`)。`loadTownCharacters()`/
   `subscribeTownCharacters()` で読み、tc-town のキャラクターを VRM コンパニオン + AI ペルソナ
   として取り込める(`AvatarScreen.tsx`)。フィールドごとに防御的にコアース/検証し、単一の
@@ -424,6 +428,281 @@ tc-note に書かれたノートを、tc-storage のドライブへ「ノート�
 - **クロスアプリ書き込みについて**: `storage-drive-inbox` と同様、tc-storage の
   `tc-storage-snapshot-v1` へは tc-storage 自身が書き込む。tc-note はバス経由でインデックスを
   渡すだけで、tc-storage の他の localStorage キーを直接読み書きしない。
+
+## 既存トピック: `town-backup`
+
+tc-town の全体バックアップ(キャラクター/ワールド/アプリ設定/プロバイダ設定)を、tc-storage の
+ドライブへ自動でファイルとして複製するためのトピック。手動バックアップUI(Settings >
+バックアップ タブでのJSON手動ダウンロード/アップロード)を廃止し、自動保存の一環として
+このトピック経由の自動発行に置き換えた。`storage-drive-inbox` と同じ使い捨て鍵の暗号化方式を
+採るが、対象が単一の安定IDを持つバックアップバンドル1件のみであり、`note-doc-index` と同じ
+「生きているコピーは常に1つ」置換パターンを採る点が異なる。
+
+- **書き手**: tc-town(`src/lib/townBackupPublisher.ts`)。キャラクター/ワールド/アプリ設定/
+  プロバイダ設定の変更にデバウンス後追従して発行するほか、起動時にも1回発行する(自動保存の
+  一環。手動バックアップUIは廃止)。`cid` は常に `""` 固定で、暗号化済みバンドルへの
+  ポインタを `meta` にインラインで持つ。
+
+  ```ts
+  interface TownBackupMeta {
+    v: 1
+    updatedAt: string  // ISO 8601
+    item: {
+      id: 'tc-town-backup'   // 安定ID(固定)。「生きているコピーは常に1つ」の置換キー
+      name: 'tc-town-backup.json'
+      mimeType: 'application/json'
+      size: number           // 平文バイト長
+      checksum: string       // 平文(バンドルJSON)のSHA-256 hex
+      cid: string            // AES-256-GCM暗号化済みバイト列の mistlib storage_add CID
+      key: string            // Base64。使い捨てAES-256-GCM鍵材料(発行ごとに新規)
+      iv: string             // Base64。96-bit IV
+      updatedAt: string      // ISO 8601
+    }
+  }
+  ```
+
+  バックアップ本体は既存のフルバックアップバンドル(`exportImport.ts` の `ExportBundle`:
+  appSettings / providerSettings / characters(画像アバターはdataURL埋め込み、VRMはchecksum
+  参照のみ) / worlds)を整形JSON化したもの。
+
+- **設計判断1(暗号化)**: バンドルは localStorage/IndexedDB 由来で mistlib block store には
+  元々存在しない新規露出のため、`storage-drive-inbox` と同じ「使い捨てAES-256-GCM鍵で暗号化し
+  ciphertextのみCID化、鍵/IVはmetaにインライン(同一オリジン信頼境界の内側)」方式を採る。
+  `note-doc-index` の平文方式(本文が保存時点で既に平文でmistlibに存在するケース)は前提が
+  異なるため採らない。
+- **設計判断2(単一レコード置換)**: `note-doc-index` と同じ「同じ id の生きているコピーは
+  常に1つ」方式を採る。安定 `id`(`tc-town-backup` 固定)に対し内容が変わると新しい
+  `checksum`/`cid` で再発行され、受け手は取り込み済みファイルを in-place で置換する。
+  ユーザーが tc-storage 側で削除したファイルは、tc-town のデータが実際に変わるまで復活しない。
+  冪等キーは `checksum`(平文SHA-256) — 鍵が発行ごとに新規なため `cid` は同一平文でも変わり
+  うるが、発行側の変更検知(下記)により同一内容の再発行自体が起きない。
+- **発行側の変更検知**: バンドルの `exportedAt` は毎回変わるため、これを除外した内容シグネチャ
+  (SHA-256)を `tc-town:backup-publish-state-v1`(`{ v: 1, signature }`)に記録し、変化が無ければ
+  再発行しない(無限churn防止)。発行成功時のみシグネチャを更新する(失敗時は次回のトリガーで
+  再試行される)。
+- **読み手**: tc-storage(`src/app/appTownBackupInbox.ts`)。起動時に `readShared("town-backup")`
+  を1回読み、以後 `subscribeShared` で購読する。`storage_get(cid)` → AES-GCM復号 →
+  SHA-256チェックサム照合の順に処理し、一致した平文だけをルート直下の専用フォルダ「TC Town」へ
+  `tc-town-backup.json` として取り込む。取込状態は
+  `tc-storage-town-backup-imported-v1`(`{ v: 1, entries: Record<id, { checksum, fileId }> }`)に
+  記録し、`note-doc-index` と同じ「生きているコピーは常に1つ」の置換ロジックで管理する。
+- **取込失敗の扱い(一時的 vs 恒久的)**: `storage-drive-inbox` と同じ分類。一時的な失敗
+  (mistモジュールのロード失敗、`storage_get` の失敗など)は取込済みマークをつけず、次回の
+  republish/購読で再試行する。恒久的な失敗(復号エラー、チェックサム不一致)は恒久的に
+  取込済み扱いとしてマークし、以後の再発行では無視する。
+- **クロスアプリ書き込みについて**: 他のインボックス系トピックと同様、`tc-storage-snapshot-v1`
+  へは tc-storage 自身が書き込む。tc-town はバス経由でレコードを渡すだけで、tc-storage の
+  他の localStorage キーを直接読み書きしない。
+- **復元経路**: tc-storage 上に取り込まれたバンドルJSONは、tc-town のキャラクター画面の
+  インポート(`parseCharacterImport` はフルバンドル形状も受け付ける)から読み込むことで
+  復元できる。
+
+## 既存トピック: `books-backup`
+
+tc-books(複式簿記の会計/家計簿アプリ)の帳簿バンドル(仕訳/勘定科目/アプリ設定)を、
+tc-storage のドライブへ自動でファイルとして複製するためのトピック。`town-backup` と
+完全に同型: 使い捨て鍵の暗号化方式・単一の安定IDを持つバックアップバンドル1件のみ・
+「生きているコピーは常に1つ」置換パターン、のすべてを引き継ぐ。
+
+- **書き手**: tc-books(vendored `sharedBus.ts` 経由)。仕訳/勘定科目/アプリ設定の変更に
+  デバウンス後追従して発行するほか、起動時にも1回発行する(自動保存の一環)。`cid` は常に
+  `""` 固定で、暗号化済みバンドルへのポインタを `meta` にインラインで持つ。
+
+  ```ts
+  interface BooksBackupMeta {
+    v: 1
+    updatedAt: string  // ISO 8601
+    item: {
+      id: 'tc-books-backup'  // 安定ID(固定)。「生きているコピーは常に1つ」の置換キー
+      name: 'tc-books-backup.json'
+      mimeType: 'application/json'
+      size: number           // 平文バイト長
+      checksum: string       // 平文(バンドルJSON)のSHA-256 hex
+      cid: string            // AES-256-GCM暗号化済みバイト列の mistlib storage_add CID
+      key: string            // Base64。使い捨てAES-256-GCM鍵材料(発行ごとに新規)
+      iv: string             // Base64。96-bit IV
+      updatedAt: string      // ISO 8601
+    }
+  }
+  ```
+
+  バックアップ本体は仕訳(journal)・勘定科目(accounts)・アプリ設定を整形JSON化したもの。
+
+- **設計判断(暗号化・単一レコード置換)**: `town-backup` と同じ判断を採る。バンドルは
+  localStorage 由来で mistlib block store には元々存在しない新規露出のため、使い捨て
+  AES-256-GCM鍵で暗号化しciphertextのみCID化、鍵/IVはmetaにインライン(同一オリジン信頼境界の
+  内側)する。安定 `id`(`tc-books-backup` 固定)に対し内容が変わると新しい `checksum`/`cid` で
+  再発行され、受け手は取り込み済みファイルを in-place で置換する。冪等キーは `checksum`
+  (平文SHA-256)。
+- **発行側の変更検知**: `town-backup` と同じく、`exportedAt` 相当のタイムスタンプを除いた
+  内容シグネチャ(SHA-256)を `tc-books:backup-publish-state-v1` に記録し、変化が無ければ
+  再発行しない(無限churn防止)。発行成功時のみシグネチャを更新する。
+- **読み手**: tc-storage(`src/app/appBooksBackupInbox.ts`)。起動時に
+  `readShared("books-backup")` を1回読み、以後 `subscribeShared` で購読する。
+  `storage_get(cid)` → AES-GCM復号 → SHA-256チェックサム照合の順に処理し、一致した平文だけを
+  ルート直下の専用フォルダ「TC Books」へ `tc-books-backup.json` として取り込む。取込状態は
+  `tc-storage-books-backup-imported-v1`(`{ v: 1, entries: Record<id, { checksum, fileId }> }`)に
+  記録し、`town-backup` と同じ「生きているコピーは常に1つ」の置換ロジックで管理する。
+- **取込失敗の扱い(一時的 vs 恒久的)**: `town-backup`/`storage-drive-inbox` と同じ分類。
+  一時的な失敗(mistモジュールのロード失敗、`storage_get` の失敗など)は取込済みマークを
+  つけず、次回のrepublish/購読で再試行する。恒久的な失敗(復号エラー、チェックサム不一致)は
+  恒久的に取込済み扱いとしてマークし、以後の再発行では無視する。
+- **クロスアプリ書き込みについて**: 他のインボックス系トピックと同様、`tc-storage-snapshot-v1`
+  へは tc-storage 自身が書き込む。tc-books はバス経由でレコードを渡すだけで、tc-storage の
+  他の localStorage キーを直接読み書きしない。
+
+## 既存トピック: `pdf-viewer-inbox`
+
+tc-storage のファイルプレビューから「tc-pdf-viewer で開く」を選んだファイルを、tc-pdf-viewer の
+ライブラリへ「ファイルとして」複製するためのトピック。`storage-drive-inbox`/`translations-inbox`
+とは向きが逆で、tc-storage が発行しファミリー内の別アプリ(tc-pdf-viewer)が消費する
+インボックス系トピック。書き手側の実装(`fileHandoff.ts`)は同じワイヤ形式・同じ発行方式で
+`note-inbox`(tc-note 向け、テキスト/Markdown ファイルの引き渡し)トピックも発行し、
+tc-note 側は `src/lib/noteInbox.ts` が消費する(冪等キー `tc-note-inbox-imported-v1`、
+`{ v: 1, ids: string[] }`・上限1000件)。以下の契約記述はトピック名と読み手・冪等キーを
+読み替えれば `note-inbox` にもそのまま適用される。
+
+- **書き手**: tc-storage(`src/storage/fileHandoff.ts` の `publishFileHandoff`、
+  `src/app/appFileHandoffActions.ts` の `sendFileToApp` から呼ばれる)。ユーザーがファイル
+  プレビューの「送信」操作で明示的に対象アプリを選んだときにのみ発行される(自動発行ではない)。
+  `storage-drive-inbox`/`town-backup` と同じく、ファイルごとに使い捨ての AES-256-GCM鍵で
+  暗号化し、ciphertext のみを mistlib の `storage_add_pinned` でCID化した上で、`cid` は
+  常に `""` 固定、各アイテムは `meta.items` にインラインで持つローリングリストとして
+  `publishShared("pdf-viewer-inbox", "", { items })` を呼ぶ。直近 `maxHandoffItems`(50件)
+  までを毎回まるごと再発行する(`translations-inbox`/`storage-drive-inbox` と同じ方針)。
+
+  ```ts
+  interface FileHandoffItem {
+    id: string          // 安定ID(UUID)。受け手はこれで重複排除する
+    name: string
+    mimeType: string
+    size: number
+    checksum: string     // 平文バイト列のSHA-256 hex digest
+    cid: string          // 暗号化済みバイト列のmistlib storage_add CID
+    key: string          // Base64。使い捨てのAES-256-GCM鍵材料
+    iv: string           // Base64。96-bit AES-GCM IV
+    addedAt: string      // ISO 8601
+  }
+  ```
+
+  ファイルサイズは50MB(`maxHandoffBytes`)を超えると発行自体が失敗する。
+
+- **暗号化モデル**: `storage-drive-inbox` と同じく、各アイテムは送信の都度生成される使い捨ての
+  AES-256-GCM鍵で暗号化され、ciphertextのみが mistlib の block store(P2P で可視になりうる)に
+  乗る。鍵と IV は `key`/`iv` として `meta` にそのままインラインで乗るが、「設計方針」の
+  「署名なし・同一オリジンを信頼境界とする」方針どおり許容している。
+- **読み手**: tc-pdf-viewer(`src/services/storageHandoffInbox.js`)。マウント時に
+  `readShared("pdf-viewer-inbox")` を1回読み、以後 `subscribeShared` で購読する。各アイテムを
+  `storage_get(cid)` → AES-GCM 復号 → SHA-256 チェックサム照合の順に処理し、一致した平文だけを
+  通常のアップロードフロー(`savePdf()`)で専用フォルダ「tc-storageから追加」へ取り込む。
+  取り込み直後はライブラリ一覧を再取得し、直近取り込んだPDFを自動で開く(ユーザーがこの操作の
+  ためにタブを開いた可能性が高いための best-effort な挙動)。取込済み `id` は
+  `tc-pdf-viewer-inbox-imported-v1`(上限1000件)に記録して冪等化する —
+  `storage-drive-inbox` の `tc-storage-drive-inbox-imported-v1` と同じパターン。
+- **PDF以外のアイテムの扱い**: MIMEタイプが `application/pdf` でも拡張子が `.pdf` でもない
+  アイテムは取り込まず、恒久的に取込済み扱いとしてマークする(`storage-drive-inbox` の
+  「恒久的な失敗」と同じ扱い)。
+- **取込失敗の扱い(一時的 vs 恒久的)**: `storage-drive-inbox`/`town-backup` と同じ分類。
+  **一時的な失敗**(mistlib初期化・`storage_get`の失敗など、再試行すれば成功しうるもの)は
+  取込済みマークをつけず、次回の republish/購読で再試行する。**恒久的な失敗**(復号エラー・
+  チェックサム不一致・PDF以外のファイル)は恒久的に取込済み扱いとしてマークし、以後の再発行では
+  無視する。ライブラリへの追加(`savePdf()`)自体が失敗した場合(storage_add/ネットワーク
+  障害など)も取込済みマークをつけず、次回再試行する。
+- **インボックスパターンについて**: tc-storage → 他アプリ方向のファイルハンドオフとしては、
+  `storage-drive-inbox`/`note-doc-index`/`town-backup`/`books-backup` の「他アプリ →
+  tc-storage」方向と逆になる、初めての「tc-storage → 他アプリ」方向のインボックス。使い捨て鍵
+  暗号化・ローリングリスト・冪等ID記録という設計はすべて既存インボックス系トピックと共通の
+  interop v2 標準形であり、新規インボックストピックを追加する際のテンプレートとして
+  参照すること。
+- **クロスアプリ書き込みについて**: 他のインボックス系トピックと同様、tc-pdf-viewer の
+  `mist_files_index`/`mist_ocr_markdown_index` 等へは tc-pdf-viewer 自身が(通常のアップロード
+  フロー経由で)書き込む。tc-storage はバス経由でアイテムを渡すだけで、tc-pdf-viewer の
+  localStorage キーを直接読み書きしない。
+
+## 既存トピック: `lingo-card-inbox`
+
+tc-translate の翻訳/解説履歴を、ユーザーが選んだエントリ単位で tc-lingo の SRS カード候補へ
+送り込むためのトピック。tc-lingo にとって初のエコシステム連携(それまでマニフェストは
+`publishes: [] / consumes: [] / reads: []` で連携ゼロだった)。`translations-inbox` と同じ
+「トップレベル `cid` は空、`meta` に軽量アイテム一覧、本文はアイテム単位の CID」という
+ワイヤ形式を踏襲するが、本文側は `translations-inbox` のようにインラインではなく mistlib の
+`storage_add` でCID化する点が異なる(全文インラインは localStorage quota を圧迫するため。
+2026-07-13 の storage 監査で問題化済みの観点)。
+
+- **書き手**: tc-translate(新規モジュール `src/lib/shareToLingo.ts`)。`HistoryPanel.tsx` の
+  各履歴エントリに追加された「Lingoへ送る」ボタン(`useHistoryPanel.ts` の
+  `sendHistoryItemToLingo(id)`)から明示的に呼ばれる(自動発行ではない。`note-article`/
+  `pdf-viewer-inbox` と同じ「ユーザー操作起点」パターン)。`loadHistory()` が返す hydrate 済み
+  履歴アイテム(legacy インラインアイテムも同一経路で扱える)から `LingoCardPayloadV1` を
+  構築して `storageAddJson` でCID化し、`LingoCardInboxItem` に整形して既存 `meta.items` と
+  併合、ローリング上限50件で `publishShared("lingo-card-inbox", "", meta)` を呼ぶ。同一 `id`
+  の再送は既存エントリを置換する(`sentAt` 更新)。`kind === 'proofread'` の履歴は送信ボタン
+  自体を出さない(`targetLanguage` 空・`translations` 空のため v1 対象外)。
+
+  ```ts
+  // meta の形。トップレベル cid は空(translations-inbox と同型)。
+  interface LingoCardInboxMeta {
+    v: 1
+    items: LingoCardInboxItem[]   // ローリング上限 50 件、毎回まるごと再発行
+  }
+
+  interface LingoCardInboxItem {
+    id: string             // 安定ID = tc-translate 履歴アイテムの id。受け手はこれで冪等化
+    kind: 'translate' | 'explain'  // v1 では proofread 対象外
+    targetLanguage: string // languageOptions の英語名(例 'Japanese')
+    sourcePreview: string  // 先頭200字。受信箱一覧の表示用(CID解決前に出せる)
+    cid: string             // LingoCardPayloadV1 の storage_add CID(平文)
+    sentAt: string          // ISO 8601
+  }
+
+  // cid の指す先。平文JSON、送信時に storageAddJson で新規保存する。
+  interface LingoCardPayloadV1 {
+    v: 1
+    sourceText: string      // 全文
+    translations: { tone: string; text: string; reading?: string; pinyin?: string }[]
+    vocabulary?: { word: string; reading?: string; meaning: string; note?: string }[]   // explain 由来
+    grammarPoints?: { pattern: string; explanation: string; example?: string }[]        // explain 由来
+    notes: string[]
+  }
+  ```
+
+- **設計判断(平文CID)**: 履歴本文は保存時点で既に平文のまま同一オリジン共有の mistlib
+  ストアへ `storageAddJson` 済み(`PersistedHistoryItem.bodyCid` が指す `HistoryItemBody`。
+  詳細は [keys/tc-translate.md](keys/tc-translate.md))であり、契約形状に整形し直して
+  `LingoCardPayloadV1` として再度 `storage_add` しても新たな露出を生まない。`note-doc-index`
+  の判断と同じ側(「暗号化前の平文がどこにも存在しなかったデータ」に限って使い捨て鍵で
+  暗号化する `storage-drive-inbox` とは前提が異なる)。
+- **設計判断(`bodyCid` の使い回しではなく専用ペイロードを新規 add)**: `bodyCid` の指す
+  `HistoryItemBody` は tc-translate の内部型でバージョンフィールドも持たない。これをそのまま
+  契約に昇格させると tc-translate の内部実装を凍結してしまうため、`LingoCardPayloadV1`
+  (`v` 付き・契約形状)を送信時に add し直すことで疎結合を保つ。legacy インラインアイテム
+  (`bodyCid` を持たない旧形式)も `loadHistory()` の hydrate 後は同一形状で届くため、
+  同一コードパスで送信できる。
+- **失敗吸収**: `storageAddJson` 失敗時はそのアイテムを publish から除外するだけで、
+  他のアイテムの発行は継続する(`shareToStorage.ts` の `buildInboxItem` パターン踏襲、
+  全体はベストエフォート)。
+- **読み手**: tc-lingo(`src/lib/cardInbox.ts` の購読ロジック + `CardsView` の受信箱UI)。
+  起動時に `readShared("lingo-card-inbox")` を1回読み、以後 `subscribeShared` で購読する。
+  一覧は `sourcePreview`/`targetLanguage` だけで CID解決前に表示でき、ユーザーが個別に展開
+  したときに初めて `cid` を `storage_get` で解決して `LingoCardPayloadV1` を取得する。候補
+  生成は決定的マッピング(`explain` 由来は `vocabulary[]`/`grammarPoints[]` を機械的にカードへ、
+  `translate` 由来は原文↔訳文の文カード1枚)を既定とし、任意ボタンでのLLM語彙抽出(共有LLM設定
+  `tc-shared-llm-config-v1` 使用)を追加できる。カード確定はユーザーが候補選択UIで選んだものだけ
+  が通常の `addCard` へ渡る(バス自体はカードを自動生成しない)。
+  **冪等キー**: `tc-lingo:card-inbox-state-v1`
+  (`{ v: 1, done: Record<itemId, 'imported' | 'dismissed'> }`、上限1000件、古い順に間引き)。
+  同一 `id` の再発行(送り手側のトーン追記等による再送)は既定でスキップする。
+- **取込失敗の扱い(一時的 vs 恒久的)**: `storage-drive-inbox`/`pdf-viewer-inbox` と同じ分類。
+  **一時的な失敗**(mistlib ロード失敗、`storage_get` の失敗など、再試行すれば成功しうるもの)は
+  `done` に記録せず、受信箱に「取得できません・再試行」を表示して次回に委ねる。**恒久的な失敗**
+  (`LingoCardPayloadV1` の型ガード不合格)は、送信時点でペイロードが固定されており再試行しても
+  結果が変わらないため、`dismissed` として恒久的に取込済み扱いにマークする。
+- **クロスアプリ書き込みについて**: tc-translate は共有トピックキー
+  (`tc-shared-lingo-card-inbox-v1`)のみを書き、`tc-lingo:*` の localStorage キーには一切
+  触れない。tc-lingo 側の `tc-lingo:cards-v1` への書き込みは常に tc-lingo 自身の `addCard`
+  経由で行われ(ユーザーの候補選択を介する)、バスがカードストアを直接書き換えることはない —
+  他のインボックス系トピックと同じ「送り手はアイテムを渡すだけ、書き込みは受け手の既存フローに
+  乗る」原則を踏襲する。
 
 ## バージョニング方針
 

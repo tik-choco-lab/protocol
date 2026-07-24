@@ -1,7 +1,7 @@
 # tc-protocol
 
 `tik-choco` 配下のアプリ群(tc-note, tc-pdf-viewer, tc-storage, tc-chat, tc-translate,
-tc-mistllm, tc-vrm-viewer, tc-home, tc-news)が暗黙に共有している「同一オリジンでのデータ共有」
+tc-mistllm, tc-vrm-viewer, tc-home, tc-news, tc-lingo)が暗黙に共有している「同一オリジンでのデータ共有」
 契約を明文化するための仕様リポジトリです。
 
 ## 目的
@@ -56,6 +56,8 @@ tc-protocol はあくまで**仕様ドキュメントと参照用の型定義**�
   マニフェスト `appManifest` の仕様
 - [docs/llm-config.md](docs/llm-config.md) : LLM/TTS/STT の接続設定を共有する `llmConfig`
   (`tc-shared-llm-config-v1`)の仕様
+- [docs/vrm-model-library.md](docs/vrm-model-library.md) : tc-vrm-viewer/tc-town/tc-travel が
+  共有する VRMモデルライブラリ(IndexedDB `tc-vrm-viewer`/`models`)の仕様
 - [reference/](reference/) : sharedBus/appManifest/llmConfig の正本(参照実装)。
   `scripts/sync-vendored.mjs` が各アプリへ配布する
 - [types/](types/) : 各アプリの値スキーマの TypeScript 型定義(参照用)

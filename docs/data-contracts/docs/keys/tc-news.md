@@ -12,7 +12,7 @@ tc-news はノート/記事系トピックのパブリッシャーであり、�
 | キー | スキーマ | 書き手 | 読み手 | 出典 |
 |---|---|---|---|---|
 | `tc-news:app-settings` | `AppSettings`(下記) | tc-news | tc-news | tc-news/src/lib/appSettings.ts:8 |
-| `tc-news:provider-settings` | `{ ttsEnabled: boolean; networkConsumerEnabled: boolean; orchestratorPresetId: string; workerPresetId: string }`(`ProviderSettings`) | tc-news | tc-news | tc-news/src/lib/llmSettings.ts:33-42 |
+| `tc-news:provider-settings` | `{ ttsEnabled: boolean; networkConsumerEnabled: boolean; networkProviderEnabled: boolean; orchestratorPresetId: string; workerPresetId: string }`(`ProviderSettings`) | tc-news | tc-news | tc-news/src/lib/llmSettings.ts:34-45 |
 | `tc-shared-llm-config-v1` | `SharedLlmConfigV1`(接続/モデル/TTS・STT/AI Networkルーム。詳細は [../llm-config.md](../llm-config.md)) | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-news/src/lib/llmConfig.ts。詳細は [../llm-config.md](../llm-config.md) |
 | `tc-news:feeds` | `FeedSource[]`(RSS/Atomフィード購読設定) | tc-news | tc-news | tc-news/src/lib/feedStore.ts:5 |
 | `tc-news:feed-items` | `FeedItem[]`(取得済みフィード項目、上限500件) | tc-news | tc-news | tc-news/src/lib/feedStore.ts:6 |
@@ -81,8 +81,8 @@ tc-news 既定のプライベートルーム(`roomId: "tc-news"`)の両方で共
   各プロファイルを `ensureProvider`/`ensurePreset` で(id を保持したまま)共有キーへ追加、
   `defaultPresetId`/`tts`/`network.roomId` は空のときのみ設定(merge-never-delete)した上で
   `tc-news:provider-settings` を新しい縮小形状(`ttsEnabled`/`networkConsumerEnabled`/
-  `orchestratorPresetId`/`workerPresetId`)で再保存する。この移行に伴い、旧 `LlmProfile`/
-  `TtsSettings` 型はコードベースから削除済み。
+  `networkProviderEnabled`/`orchestratorPresetId`/`workerPresetId`)で再保存する。この移行に
+  伴い、旧 `LlmProfile`/`TtsSettings` 型はコードベースから削除済み。
 - `orchestratorPresetId`/`workerPresetId` は「アプリローカル層の指針」
   ([../llm-config.md](../llm-config.md))が挙げる役割別プリセット参照の実例で、編集部生成の
   orchestrator/worker それぞれに使う preset を指す。空文字は `resolvePreset` のフォールバック
