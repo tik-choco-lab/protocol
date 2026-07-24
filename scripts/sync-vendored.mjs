@@ -57,6 +57,8 @@ const APPS = [
   // so vendoring it is a safe no-op — not "hand-written/diverged", just
   // previously unmanaged. It doesn't carry sharedBus yet.
   { name: 'tc-mistllm', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: true },
+  { name: 'tc-books', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
+  { name: 'tc-lingo', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
 ];
 const APP_BY_NAME = new Map(APPS.map((a) => [a.name, a]));
 

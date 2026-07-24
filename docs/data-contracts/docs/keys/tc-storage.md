@@ -22,6 +22,11 @@ mistlib 使用: あり(`tc-storage/src/storage/mistStorage.ts` ほか、`storage
 | `tc-storage-drive-inbox-imported-v1` | `string[]`(取込済みのdrive-inboxアイテムID、上限1000件) | tc-storage | tc-storage | tc-storage/src/app/appDriveInbox.ts。共有バス `storage-drive-inbox`(tc-note 発行)から取り込んだ項目の冪等化用。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) |
 | `tc-shared-note-doc-index-v1` | `SharedRecord`(`meta` は `{ notes: NoteDocIndexEntry[] }`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note | **tc-storage(クロスアプリ読み取り)** | tc-storage/src/app/appNoteDocInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `note-doc-index` トピック |
 | `tc-storage-note-doc-imported-v1` | `{ v: 1, entries: Record<noteId, { cid: string; fileId: string }> }`(上限1000件) | tc-storage | tc-storage | tc-storage/src/app/appNoteDocInbox.ts。共有バス `note-doc-index`(tc-note 発行)から取り込んだノートのCID/ファイルID対応。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) |
+| `tc-shared-town-backup-v1` | `SharedRecord`(`meta` は `TownBackupMeta`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-town | **tc-storage(クロスアプリ読み取り)** | tc-storage/src/app/appTownBackupInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `town-backup` トピック |
+| `tc-storage-town-backup-imported-v1` | `{ v: 1, entries: Record<id, { checksum: string; fileId: string }> }` | tc-storage | tc-storage | tc-storage/src/app/appTownBackupInbox.ts。共有バス `town-backup`(tc-town 発行)から取り込んだバックアップの冪等化用(id `tc-town-backup` 固定、checksum/ファイルID対応で「生きているコピーは常に1つ」を維持)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) |
+| `tc-shared-books-backup-v1` | `SharedRecord`(`meta` は `BooksBackupMeta`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-books | **tc-storage(クロスアプリ読み取り)** | tc-storage/src/app/appBooksBackupInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `books-backup` トピック |
+| `tc-storage-books-backup-imported-v1` | `{ v: 1, entries: Record<id, { checksum: string; fileId: string }> }` | tc-storage | tc-storage | tc-storage/src/app/appBooksBackupInbox.ts。共有バス `books-backup`(tc-books 発行)から取り込んだバックアップの冪等化用(id `tc-books-backup` 固定、checksum/ファイルID対応で「生きているコピーは常に1つ」を維持)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) |
+| `tc-shared-pdf-viewer-inbox-v1` | `SharedRecord`(`meta.items` は `FileHandoffItem[]`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | **tc-storage** | tc-pdf-viewer(クロスアプリ読み取り) | tc-storage/src/storage/fileHandoff.ts:16-21,94-129(`publishFileHandoff`); tc-storage/src/app/appFileHandoffActions.ts:24-37(`sendFileToApp`)。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `pdf-viewer-inbox` トピック |
 
 ## AppSettings
 
@@ -84,6 +89,37 @@ type PublicDidIdentity = {
   エントリが外れるだけで、tc-storage は既存コピーを保持し続ける。ノート本文は暗号化されず
   平文CIDのまま届く(tc-note の `saveNote` が保存時点で既に平文で mistlib に保存しているため、
   `storage-drive-inbox` と異なり暗号化の必要がない)。契約詳細は [../SHARED_BUS.md](../SHARED_BUS.md)。
+- **クロスアプリ受信(town-backup)**: 共有バスの `town-backup` トピック(tc-town発行)を購読し、
+  `src/app/appTownBackupInbox.ts` が tc-town の全体バックアップ(`tc-town-backup.json`)を
+  ルート直下の専用フォルダ「TC Town」へ取り込む。安定ID `tc-town-backup` に対し「生きている
+  コピーは常に1つ」を維持し、同じIDが新しいchecksum/CIDで再発行されれば前回ファイルを
+  置き換える。`storage-drive-inbox` と同様、各アイテムは tc-town 側で使い捨てAES-256-GCM鍵に
+  より暗号化された状態で届くため、`storage_get` 後に復号・SHA-256チェックサム照合してから
+  取り込む。取込済み状態は `tc-storage-town-backup-imported-v1`(id→checksum/fileId対応)に
+  記録して冪等化する。一時的な解決失敗(mistロード・`storage_get`失敗)は取込済みマークを
+  つけず再試行、恒久的な失敗(復号エラー・チェックサム不一致)は恒久的に取込済み扱いとする
+  (`storage-drive-inbox` と同じ分類)。契約詳細は [../SHARED_BUS.md](../SHARED_BUS.md)。
+- **クロスアプリ受信(books-backup)**: 共有バスの `books-backup` トピック(tc-books発行)を購読し、
+  `src/app/appBooksBackupInbox.ts` が tc-books の帳簿バックアップ(`tc-books-backup.json`)を
+  ルート直下の専用フォルダ「TC Books」へ取り込む。安定ID `tc-books-backup` に対し「生きている
+  コピーは常に1つ」を維持し、同じIDが新しいchecksum/CIDで再発行されれば前回ファイルを
+  置き換える。`town-backup` と同様、各アイテムは tc-books 側で使い捨てAES-256-GCM鍵により
+  暗号化された状態で届くため、`storage_get` 後に復号・SHA-256チェックサム照合してから
+  取り込む。取込済み状態は `tc-storage-books-backup-imported-v1`(id→checksum/fileId対応)に
+  記録して冪等化する。一時的な解決失敗(mistロード・`storage_get`失敗)は取込済みマークを
+  つけず再試行、恒久的な失敗(復号エラー・チェックサム不一致)は恒久的に取込済み扱いとする
+  (`town-backup` と同じ分類)。契約詳細は [../SHARED_BUS.md](../SHARED_BUS.md)。
+- **クロスアプリ送信(pdf-viewer-inbox)**: `src/storage/fileHandoff.ts` の
+  `publishFileHandoff`(`src/app/appFileHandoffActions.ts` の `sendFileToApp` から、ファイル
+  プレビューの「送信」操作で明示的に呼ばれる)が、ファイルを使い捨てAES-256-GCM鍵で暗号化して
+  `storage_add_pinned` でCID化し、共有バスの `pdf-viewer-inbox` トピックへ
+  `publishShared("pdf-viewer-inbox", "", { items })` で発行する。直近50件(`maxHandoffItems`)を
+  ローリングリストとして毎回まるごと再発行する(`storage-drive-inbox` 等の受信系トピックと
+  同じ発行方式だが、こちらは tc-storage が書き手・tc-pdf-viewer が読み手という逆方向)。
+  同じ `fileHandoff.ts` は `note-inbox`(tc-note向け、テキスト/Markdown ファイルの引き渡し)
+  トピックも同一ワイヤ形式で発行し、tc-note の `src/lib/noteInbox.ts` が読み手(冪等キー
+  `tc-note-inbox-imported-v1`)。契約詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の
+  「既存トピック: `pdf-viewer-inbox`」を参照(`note-inbox` は読み替えで同契約)。
 - **`tc-storage-snapshot-v1` の直接クロスアプリ読み取り**: tc-chat がドロップ済みファイルを
   CID 添付できるよう、`tc-chat/src/interop/tcStorageFiles.ts` がこのキーを `getItem` で
   直接読む(読み取り専用、tc-chat は一切書き込まない)。ソフトデリート済み・未アップロード

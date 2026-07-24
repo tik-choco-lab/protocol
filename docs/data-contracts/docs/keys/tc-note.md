@@ -11,12 +11,14 @@ mistlib 使用: あり(`tc-note/src/lib/mistlib.ts`、`storage_add`/`storage_get
 | `tc-shared-llm-config-v1` | `SharedLlmConfigV1`(接続/モデル/TTS・STT/AI Networkルーム。詳細は [../llm-config.md](../llm-config.md)) | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-note, tc-translate, tc-pdf-viewer, tc-news, tc-town, tc-travel, tc-mistllm | tc-note/src/lib/llmConfig.ts。詳細は [../llm-config.md](../llm-config.md) |
 | `tc-note:collab-user` | コラボ用ユーザー情報 | tc-note | tc-note | tc-note/src/hooks/useCollab.ts:13 |
 | `tc-shared-ocr-markdown-index-v1` | `SharedRecord`(共有バス、[../SHARED_BUS.md](../SHARED_BUS.md)参照) | tc-pdf-viewer | **tc-note (読み取り専用)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts; tc-pdf-viewer/src/services/storage.js |
-| `mist_ocr_markdown_index` | `Record<string, string \| { content: string }>`(ファイル名→CID or 本文) | tc-pdf-viewer | **tc-note (読み取り専用、フォールバック)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:10; tc-pdf-viewer/src/services/storage.js |
-| `mist_translated_markdown_index` | `Record<string, Record<string, string>>`(ファイル名→言語→CID) | tc-pdf-viewer | **tc-note (読み取り専用)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:11; tc-pdf-viewer/src/services/storage.js |
+| `mist_ocr_markdown_index` | `Record<pdfName, string \| { content: string } \| { cid: string, updatedAt: number, summary?: string, summaryUpdatedAt?: number }>`(裸CID文字列(最古)/`{content}`インライン(旧)/`{cid,...}`(現行)の3形式が dual-read 対象で混在。詳細は [tc-pdf-viewer.md](tc-pdf-viewer.md) の特記事項) | tc-pdf-viewer | **tc-note (読み取り専用、フォールバック)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:20,71-83; tc-pdf-viewer/src/services/storage.js |
+| `mist_translated_markdown_index` | `Record<pdfName, Record<lang, string \| { content: string } \| { cid: string, updatedAt: number }>>`(`mist_ocr_markdown_index` と同じ3形式が混在) | tc-pdf-viewer | **tc-note (読み取り専用)**, tc-pdf-viewer | tc-note/src/lib/importDocument.ts:21,141-165; tc-pdf-viewer/src/services/storage.js |
 | `tc-translate-history-v1` | `TranslationHistoryEntry[]` | tc-note (読み取り専用, インポート機能), tc-translate | tc-translate | tc-note/src/lib/importTranslations.ts:9 |
 | `tc-shared-note-article-v1` | `SharedRecord`(`meta` は `NoteArticleMeta`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note, tc-news | **tc-chat(クロスアプリ読み取り)** | tc-note/src/lib/shareArticle.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `note-article` トピック |
 | `tc-shared-storage-drive-inbox-v1` | `SharedRecord`(`meta` は `{ items: DriveInboxItem[] }`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note | **tc-storage(クロスアプリ読み取り)** | tc-note/src/lib/storageDriveInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `storage-drive-inbox` トピック |
 | `tc-shared-note-doc-index-v1` | `SharedRecord`(`meta` は `{ notes: NoteDocIndexEntry[] }`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | tc-note | **tc-storage(クロスアプリ読み取り)** | tc-note/src/lib/noteDocExport.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `note-doc-index` トピック |
+| `tc-shared-note-inbox-v1` | `SharedRecord`(`meta.items` は `FileHandoffItem[]`。詳細は [../SHARED_BUS.md](../SHARED_BUS.md)) | **tc-storage(クロスアプリ書き手)** | tc-note | tc-note/src/lib/noteInbox.ts:42; tc-storage/src/storage/fileHandoff.ts。詳細は [../SHARED_BUS.md](../SHARED_BUS.md) の `pdf-viewer-inbox` トピック(`note-inbox` は読み替えで同契約) |
+| `tc-note-inbox-imported-v1` | `{ v: 1, ids: string[] }`(上限1000件) | tc-note | tc-note | tc-note/src/lib/noteInbox.ts:44 |
 
 ## NoteMeta
 
@@ -73,6 +75,13 @@ interface LlmSettings {
 - `mist_ocr_markdown_index` / `mist_translated_markdown_index` は tc-pdf-viewer の
   レガシー命名規約(`mist_*`、アプリ名プレフィックスなし)を持つキーを tc-note が
   クロスアプリで読んでいる代表例。
+- **3形式 dual-read**: 両キーの各エントリは、裸のCID文字列(最古)/`{ content: string }`
+  インライン(旧)/`{ cid: string, updatedAt: number, ... }`(現行)の3形式のいずれかを
+  取りうる(詳細は [tc-pdf-viewer.md](tc-pdf-viewer.md) 参照)。`importDocument.ts` の
+  `parseOcrIndexRecord`(OCR側)は値が `string` ならまず `{ cid: value }` へ正規化してから、
+  `readTranslatedIndex`(翻訳側)も各言語エントリで同様に正規化してから、共通の
+  `resolveEntryContent`(`content` があればそれを使い、無ければ `cid` を `storage_get` で解決)
+  に流し込むことで3形式すべてを解決する。裸CID文字列への対応は今回のコード修正で追加された。
 - `mist_ocr_markdown_index` の読み取りは共有バス(`tc-note/src/lib/sharedBus.ts`)経由に
   最小移行済み: `readShared("ocr-markdown-index")` を先に試し、レコードが無い/不正な場合に
   のみ `mist_ocr_markdown_index` を直接読む。`subscribePdfViewerDocumentsChanged`
@@ -96,3 +105,11 @@ interface LlmSettings {
   (`storage-drive-inbox` と異なり)追加の暗号化は行わない。ノート削除はインデックスから
   除外されるのみで、tc-storage 側の既存コピーには伝播しない(v1)。詳細は
   [../SHARED_BUS.md](../SHARED_BUS.md) の「既存トピック: `note-doc-index`」を参照。
+- **`tc-shared-note-inbox-v1`(`note-inbox` トピック)** は tc-storage のファイルプレビューから
+  テキスト/Markdown ファイルを tc-note へ「新規ノートとして」引き渡すためのインボックス系
+  トピック。`pdf-viewer-inbox`(tc-pdf-viewer 向け)と同一ワイヤ形式(使い捨て AES-256-GCM 鍵 +
+  mistlib CID + checksum、ローリング50件)で、読み手 `noteInbox.ts` はテキスト系
+  (mime `text/*` または既知拡張子)のみを取り込み、専用フォルダ「tc-storageから追加」へ
+  格納して直近の取込ノートを自動で開く。冪等キーは `tc-note-inbox-imported-v1`。
+  取込失敗の一時的/恒久的の分類は `storage-drive-inbox` と同じ。詳細は
+  [../SHARED_BUS.md](../SHARED_BUS.md) の「既存トピック: `pdf-viewer-inbox`」を参照。
