@@ -3,9 +3,10 @@
 //
 // Copies the canonical reference modules under
 // protocol/docs/data-contracts/reference/ (sharedBus.ts/js, appManifest.ts/js,
-// llmConfig.ts/js) out to each app's vendored copy, substituting the per-app
-// APP_NAME placeholder in sharedBus (appManifest and llmConfig have no
-// per-app placeholder — they're byte-identical everywhere). This replaces
+// llmConfig.ts/js, mistSignaling.ts/js) out to each app's vendored copy,
+// substituting the per-app APP_NAME placeholder in sharedBus (appManifest,
+// llmConfig, and mistSignaling have no per-app placeholder — they're
+// byte-identical everywhere). This replaces
 // hand-copying those files between app repos on every edit — apps still have
 // zero *runtime* dependency on this protocol repo (nothing here is imported
 // at build/run time; the files are just source-copied).
@@ -33,32 +34,48 @@ const PLACEHOLDER = '__APP_NAME__';
 // Which vendored files each app carries, and where. `dir` is relative to the
 // app's own repo root. `lang` selects the .ts or .js reference rendering.
 // Each entry declares per-file flags: `sharedBus`, `appManifest`,
-// `llmConfig`. `sharedBus: false` (tc-vrm-viewer, tc-vrsns2, tc-mistllm)
-// means: that app doesn't carry the shared bus (yet). `appManifest: false`
-// means: don't touch that file for this app — used when an app's manifest
-// implementation is hand-written/diverged and syncing would clobber or
-// duplicate it. `llmConfig: true` opts an app into the shared LLM/TTS/STT
-// connection config (protocol/docs/data-contracts/docs/llm-config.md);
-// llmConfig has no per-app placeholder, so it defaults to false and must be
-// enabled explicitly per app.
+// `llmConfig`, `mistSignaling`. `sharedBus: false` (tc-vrm-viewer, tc-vrsns2,
+// tc-mistllm) means: that app doesn't carry the shared bus (yet).
+// `appManifest: false` means: don't touch that file for this app — used when
+// an app's manifest implementation is hand-written/diverged and syncing
+// would clobber or duplicate it. `llmConfig: true` opts an app into the
+// shared LLM/TTS/STT connection config
+// (protocol/docs/data-contracts/docs/llm-config.md); llmConfig has no
+// per-app placeholder, so it defaults to false and must be enabled
+// explicitly per app. `mistSignaling: true` opts an app into the shared
+// Nostr signaling namespace config
+// (protocol/docs/data-contracts/docs/mist-signaling.md) — only apps that
+// actually construct a mistlib `MistNode` need it; like llmConfig it has no
+// per-app placeholder. tc-storage and tc-vrm-viewer don't use the mistlib
+// web wrapper at all (they call the wasm module directly from a different
+// vendor directory), so they stay `mistSignaling: false` and are handled
+// separately, not through this contract.
 const APPS = [
-  { name: 'tc-note', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
-  { name: 'tc-storage', dir: 'src/storage', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: false },
-  { name: 'tc-pdf-viewer', dir: 'src/services', lang: 'js', sharedBus: true, appManifest: true, llmConfig: true },
-  { name: 'tc-translate', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
-  { name: 'tc-chat', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: false },
-  { name: 'tc-news', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
-  { name: 'tc-town', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
-  { name: 'tc-travel', dir: 'src/lib/drive', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
-  { name: 'tc-vrm-viewer', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: false },
-  { name: 'tc-vrsns2', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: false },
+  { name: 'tc-note', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true, mistSignaling: true },
+  { name: 'tc-storage', dir: 'src/storage', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: false, mistSignaling: false },
+  { name: 'tc-pdf-viewer', dir: 'src/services', lang: 'js', sharedBus: true, appManifest: true, llmConfig: true, mistSignaling: false },
+  { name: 'tc-translate', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true, mistSignaling: true },
+  { name: 'tc-chat', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: false, mistSignaling: true },
+  { name: 'tc-news', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true, mistSignaling: true },
+  { name: 'tc-town', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true, mistSignaling: true },
+  { name: 'tc-travel', dir: 'src/lib/drive', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true, mistSignaling: true },
+  { name: 'tc-vrm-viewer', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: false, mistSignaling: false },
+  { name: 'tc-vrsns2', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: false, mistSignaling: true },
   // tc-mistllm's src/lib/appManifest.ts is already a byte-identical copy of
   // the reference (written by hand before this app was added to this table),
   // so vendoring it is a safe no-op — not "hand-written/diverged", just
   // previously unmanaged. It doesn't carry sharedBus yet.
-  { name: 'tc-mistllm', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: true },
-  { name: 'tc-books', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
-  { name: 'tc-lingo', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true },
+  { name: 'tc-mistllm', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: true, mistSignaling: true },
+  { name: 'tc-books', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true, mistSignaling: true },
+  { name: 'tc-lingo', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true, mistSignaling: true },
+  // tc-presenter's sharedBus/appManifest/llmConfig copies predate this script and
+  // have drifted from the reference (line endings, and sharedBus has real content
+  // differences). Left out until someone reconciles them deliberately — flipping
+  // them on here would silently rewrite three working files.
+  { name: 'tc-presenter', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: false, llmConfig: false, mistSignaling: true },
+  // tc-home takes no other contract module — it only needs the shared signaling
+  // namespace so its node lands in the same one as its siblings.
+  { name: 'tc-home', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: false, llmConfig: false, mistSignaling: true },
 ];
 const APP_BY_NAME = new Map(APPS.map((a) => [a.name, a]));
 
@@ -66,7 +83,7 @@ function usageAndExit(code) {
   console.log('Usage: node protocol/scripts/sync-vendored.mjs <app...|all> [--check]\n');
   console.log('Known apps:');
   for (const a of APPS) {
-    const files = ['appManifest', 'sharedBus', 'llmConfig'].filter((f) => a[f]);
+    const files = ['appManifest', 'sharedBus', 'llmConfig', 'mistSignaling'].filter((f) => a[f]);
     console.log(`  ${a.name.padEnd(16)} ${a.dir.padEnd(16)} (${a.lang})  ${files.join(' + ') || '(none)'}`);
   }
   process.exit(code);
@@ -144,7 +161,7 @@ for (const rawName of targetApps) {
     continue;
   }
 
-  const fileCount = ['sharedBus', 'appManifest', 'llmConfig'].filter((f) => app[f]).length;
+  const fileCount = ['sharedBus', 'appManifest', 'llmConfig', 'mistSignaling'].filter((f) => app[f]).length;
 
   const appDir = path.join(WORKSPACE, app.name);
   console.log(`${app.name}:`);
@@ -195,6 +212,18 @@ for (const rawName of targetApps) {
       appName: app.name,
       targetDir,
       baseName: 'llmConfig',
+      lang: app.lang,
+      substitutePlaceholder: false,
+    });
+    counts[r.status] += 1;
+  }
+
+  if (app.mistSignaling) {
+    const r = syncOneFile({
+      appDir,
+      appName: app.name,
+      targetDir,
+      baseName: 'mistSignaling',
       lang: app.lang,
       substitutePlaceholder: false,
     });

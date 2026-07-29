@@ -56,8 +56,10 @@ tc-protocol はあくまで**仕様ドキュメントと参照用の型定義**�
   マニフェスト `appManifest` の仕様
 - [docs/llm-config.md](docs/llm-config.md) : LLM/TTS/STT の接続設定を共有する `llmConfig`
   (`tc-shared-llm-config-v1`)の仕様
+- [docs/mist-signaling.md](docs/mist-signaling.md) : mistlib `MistNode` 構築に必須の Nostr
+  シグナリング名前空間(`inviteSalt`/`inviteCode`)を全アプリで固定する `mistSignaling` の仕様
 - [docs/vrm-model-library.md](docs/vrm-model-library.md) : tc-vrm-viewer/tc-town/tc-travel が
   共有する VRMモデルライブラリ(IndexedDB `tc-vrm-viewer`/`models`)の仕様
-- [reference/](reference/) : sharedBus/appManifest/llmConfig の正本(参照実装)。
+- [reference/](reference/) : sharedBus/appManifest/llmConfig/mistSignaling の正本(参照実装)。
   `scripts/sync-vendored.mjs` が各アプリへ配布する
 - [types/](types/) : 各アプリの値スキーマの TypeScript 型定義(参照用)

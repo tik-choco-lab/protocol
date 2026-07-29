@@ -105,3 +105,10 @@ tc-chat・tc-vrm-viewer・tc-news・tc-vrsns2 は共有ストアを正として�
 
 Ed25519/did:key の暗号処理自体(鍵生成・base58btc エンコード・署名/検証)は5アプリとも
 tc-storage の実装を verbatim コピーしたもの([docs/keys/tc-storage.md](keys/tc-storage.md) 参照)。
+
+## 限界: オリジン境界を越えられない
+
+この統一 DID はあくまで**同一オリジンに閉じた**収束であり、別ブラウザ・別マシン・dev環境
+(別ポート)では別の DID になるため、オリジンをまたいだ「同一人物」を表す恒久 ID にはならない。
+オリジン境界を越えて同一ユーザーを識別する仕組みは[did-delegation.md](did-delegation.md)が
+定める、恒久的な root 鍵からこの DID(leaf)への委譲チェーンを参照。

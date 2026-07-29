@@ -54,6 +54,13 @@ mistlib の `sendMessage` でルームへブロードキャストされる JSON 
 フィールドも(存在すれば)自動的に署名対象へ含まれる — ワイヤに新フィールドを追加しても
 署名ロジック自体の変更は不要。
 
+同じ理由で、optional フィールド `delegation?: DelegationV1`
+([did-delegation.md](did-delegation.md) 参照)を署名前にワイヤへ乗せることもできる。
+フィールドホワイトリストが無いため、`delegation` を知らない旧検証実装でもそのまま
+`verifyWire` が通る(署名対象の文字列に含まれるだけで、検証ロジック自体の変更は不要)。
+`delegation` が付いていて `verifyDelegation` に通れば、送信者の帰属は
+did-delegation.md の解決規則に従って `fromId`(leaf)ではなく `root` になりうる。
+
 ## 本文
 
 `cid` が指すのは、`storage_add` で保存された **`NewsArticle` の JSON 全体**(tc-news
@@ -160,7 +167,10 @@ interface TranslationPayload {
 
 - 転送元は自分の DID で署名し直すのではなく、元の `fromId`/`signature` をそのまま保持した
   `ArticleWire` を再送する。これにより受信側は「誰が最初にこの記事を発行したか」を
-  常に検証可能なまま保つ(中継者になりすまされない)。
+  常に検証可能なまま保つ(中継者になりすまされない)。`delegation` が付いている場合も同様に
+  元の値のまま保持する ―― `delegation` は `signature` の対象に含まれる一フィールドなので
+  ([did-delegation.md](did-delegation.md) 参照)、外す・書き換えるとそもそも署名が壊れて
+  検証に落ちる。
 - 転送前に `verifyWire` で署名を再検証し、失敗すれば転送しない。
 - 転送に成功したら、グローバルルームの wireLog(`appendWireLog(GLOBAL_ARTICLES_ROOM_ID, wire)`)
   にも記録する。これにより転送者自身も次の history-request に対してこの記事をリプレイできる
