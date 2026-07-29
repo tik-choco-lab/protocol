@@ -68,11 +68,16 @@ const APPS = [
   { name: 'tc-mistllm', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: true, llmConfig: true, mistSignaling: true },
   { name: 'tc-books', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true, mistSignaling: true },
   { name: 'tc-lingo', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: true, llmConfig: true, mistSignaling: true },
-  // tc-presenter's sharedBus/appManifest/llmConfig copies predate this script and
-  // have drifted from the reference (line endings, and sharedBus has real content
-  // differences). Left out until someone reconciles them deliberately — flipping
-  // them on here would silently rewrite three working files.
-  { name: 'tc-presenter', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: false, llmConfig: false, mistSignaling: true },
+  // tc-presenter's copies predate this script. The divergence is now understood:
+  //   sharedBus   — was only the missing "tc-presenter" entry in SharedAppName,
+  //                 fixed in the reference, so this one is synced normally.
+  //   appManifest — identical apart from semicolons; tc-presenter's source style
+  //                 omits them, and syncing would fight that for no gain.
+  //   llmConfig   — genuinely diverged: it writes through this app's own
+  //                 ./safeStorage instead of localStorage directly. Syncing would
+  //                 silently revert that, so it stays opt-out until safeSetItem
+  //                 either lands in the reference or is dropped here.
+  { name: 'tc-presenter', dir: 'src/lib', lang: 'ts', sharedBus: true, appManifest: false, llmConfig: false, mistSignaling: true },
   // tc-home takes no other contract module — it only needs the shared signaling
   // namespace so its node lands in the same one as its siblings.
   { name: 'tc-home', dir: 'src/lib', lang: 'ts', sharedBus: false, appManifest: false, llmConfig: false, mistSignaling: true },
