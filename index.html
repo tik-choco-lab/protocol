@@ -4,29 +4,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Protocol Registry | TikChocoLab</title>
+    <title>Protocol — tik-choco data contracts</title>
+    <meta name="description"
+        content="tik-choco アプリ群が同一オリジンで共有するデータ契約(localStorage/OPFS)と、バイナリプロトコル定義のリファレンス。">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-        rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@0.454.0"></script>
+    <script src="https://unpkg.com/marked@12.0.2/marked.min.js"></script>
     <style>
+        /* ---------------------------------------------------------------
+           Design tokens — the tik-choco family design language (teal accent,
+           cool neutral surfaces, layered elevation, Inter typography). Kept
+           deliberately in sync with tc-note/src/index.css and
+           tc-vrm-viewer/src/styles.css, which are the canonical sources. Light
+           is the default; the dark overrides below mirror every themed value.
+           This page has no build step, so the tokens live inline rather than
+           in a shared stylesheet — the values, not the file, are what's shared.
+        --------------------------------------------------------------- */
         :root {
-            --bg: #0f172a;
-            --surface: rgba(30, 41, 59, 0.7);
-            --surface-hover: rgba(51, 65, 85, 0.8);
-            --border: rgba(148, 163, 184, 0.1);
-            --text: #f8fafc;
-            --text-dim: #94a3b8;
-            --primary: #818cf8;
-            --primary-glow: rgba(129, 140, 248, 0.3);
-            --secondary: #2dd4bf;
-            --accent: #f472b6;
-            --success: #34d399;
-            --warning: #fbbf24;
-            --font-main: 'Outfit', sans-serif;
-            --font-mono: 'JetBrains Mono', monospace;
+            /* Text hierarchy: --text-h strong, --text body, --text-subtle faint. */
+            --text: #5b616e;
+            --text-h: #1a1d23;
+            --text-subtle: #8a909c;
+
+            /* Surfaces & structure */
+            --bg: #ffffff;
+            --bg-alt: #f4f6f9;
+            --surface: #ffffff;
+            --surface-2: #f4f6f9;
+            --surface-3: #eaedf2;
+            --border: #e2e5ea;
+            --border-strong: #cdd2da;
+            --code-bg: #eef1f6;
+            --surface-hover: #eef1f6;
+
+            /* Brand accent (teal) — the family house colour */
+            --accent: #0d9488;
+            --accent-hover: #0b8177;
+            --accent-active: #0a726a;
+            --accent-bg: rgba(13, 148, 136, 0.1);
+            --accent-bg-strong: rgba(13, 148, 136, 0.16);
+            --accent-border: rgba(13, 148, 136, 0.35);
+            --on-accent: #ffffff;
+
+            --success: #0d9488;
+            --success-bg: rgba(13, 148, 136, 0.1);
+            --danger: #dc2626;
+            --danger-bg: rgba(220, 38, 38, 0.08);
+
+            --text-placeholder: #6b7280;
+            --overlay: rgba(16, 24, 40, 0.45);
+            --ring: rgba(13, 148, 136, 0.5);
+
+            /* Glass header backdrop */
+            --header-bg: rgba(255, 255, 255, 0.72);
+
+            /* Layered elevation — a tight "key" shadow plus a soft ambient one. */
+            --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.08), 0 1px 3px 1px rgba(16, 24, 40, 0.06);
+            --shadow-2: 0 1px 2px rgba(16, 24, 40, 0.06), 0 3px 8px 2px rgba(16, 24, 40, 0.10);
+            --shadow-3: 0 2px 3px rgba(16, 24, 40, 0.08), 0 6px 16px 4px rgba(16, 24, 40, 0.12);
+
+            /* Spacing rhythm (2/4/6/8/12/16/24/32) */
+            --space-0: 2px;
+            --space-1: 4px;
+            --space-2: 6px;
+            --space-3: 8px;
+            --space-4: 12px;
+            --space-5: 16px;
+            --space-6: 24px;
+            --space-7: 32px;
+
+            /* Radii — Material Design 3 shape scale */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-pill: 999px;
+
+            /* Motion */
+            --ease: cubic-bezier(0.2, 0, 0, 1);
+            --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+            --dur-fast: 140ms;
+            --dur-med: 240ms;
+
+            --sans: 'Inter', system-ui, 'Segoe UI', Roboto, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic UI', Meiryo, sans-serif;
+            --mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+
+            color-scheme: light dark;
+        }
+
+        /* An explicit dark choice; duplicated in the media query below so it
+           applies with or without a matching OS setting. */
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+
+            --text: #a2a8b3;
+            --text-h: #e8eaed;
+            --text-subtle: #757b86;
+
+            --bg: #14161b;
+            --bg-alt: #0e1015;
+            --surface: #14161b;
+            --surface-2: #1a1d23;
+            --surface-3: #23262e;
+            --border: #282c34;
+            --border-strong: #3a3f4a;
+            --code-bg: #1a1d23;
+            --surface-hover: #23262e;
+
+            --accent: #2dd4bf;
+            --accent-hover: #3fdccb;
+            --accent-active: #22b8a5;
+            --accent-bg: rgba(45, 212, 191, 0.14);
+            --accent-bg-strong: rgba(45, 212, 191, 0.2);
+            --accent-border: rgba(45, 212, 191, 0.4);
+            --on-accent: #04201d;
+
+            --success: #2dd4bf;
+            --success-bg: rgba(45, 212, 191, 0.14);
+            --danger: #f87171;
+            --danger-bg: rgba(248, 113, 113, 0.12);
+
+            --text-placeholder: #8a8f9a;
+            --overlay: rgba(0, 0, 0, 0.6);
+            --ring: rgba(45, 212, 191, 0.55);
+            --header-bg: rgba(20, 22, 27, 0.72);
+
+            --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px 1px rgba(0, 0, 0, 0.25);
+            --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.35), 0 3px 10px 2px rgba(0, 0, 0, 0.35);
+            --shadow-3: 0 2px 3px rgba(0, 0, 0, 0.4), 0 8px 20px 5px rgba(0, 0, 0, 0.45);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme]) {
+                color-scheme: dark;
+
+                --text: #a2a8b3;
+                --text-h: #e8eaed;
+                --text-subtle: #757b86;
+
+                --bg: #14161b;
+                --bg-alt: #0e1015;
+                --surface: #14161b;
+                --surface-2: #1a1d23;
+                --surface-3: #23262e;
+                --border: #282c34;
+                --border-strong: #3a3f4a;
+                --code-bg: #1a1d23;
+                --surface-hover: #23262e;
+
+                --accent: #2dd4bf;
+                --accent-hover: #3fdccb;
+                --accent-active: #22b8a5;
+                --accent-bg: rgba(45, 212, 191, 0.14);
+                --accent-bg-strong: rgba(45, 212, 191, 0.2);
+                --accent-border: rgba(45, 212, 191, 0.4);
+                --on-accent: #04201d;
+
+                --success: #2dd4bf;
+                --success-bg: rgba(45, 212, 191, 0.14);
+                --danger: #f87171;
+                --danger-bg: rgba(248, 113, 113, 0.12);
+
+                --text-placeholder: #8a8f9a;
+                --overlay: rgba(0, 0, 0, 0.6);
+                --ring: rgba(45, 212, 191, 0.55);
+                --header-bg: rgba(20, 22, 27, 0.72);
+
+                --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px 1px rgba(0, 0, 0, 0.25);
+                --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.35), 0 3px 10px 2px rgba(0, 0, 0, 0.35);
+                --shadow-3: 0 2px 3px rgba(0, 0, 0, 0.4), 0 8px 20px 5px rgba(0, 0, 0, 0.45);
+            }
         }
 
         * {
@@ -36,668 +184,1538 @@
         }
 
         body {
-            font-family: var(--font-main);
-            background-color: var(--bg);
-            background-image:
-                radial-gradient(circle at 0% 0%, rgba(129, 140, 248, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 100% 100%, rgba(45, 212, 191, 0.1) 0%, transparent 50%);
+            font: 16px/1.6 var(--sans);
             color: var(--text);
+            background: var(--bg);
             min-height: 100vh;
-            padding: 3rem 1rem;
-            line-height: 1.6;
+            font-synthesis: none;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        .container {
-            max-width: 1000px;
+        h1,
+        h2,
+        h3,
+        h4 {
+            color: var(--text-h);
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        code,
+        pre {
+            font-family: var(--mono);
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        /* ---------- header ---------- */
+
+        .app-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--header-bg);
+            backdrop-filter: saturate(180%) blur(12px);
+            -webkit-backdrop-filter: saturate(180%) blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .app-header-inner {
+            max-width: 1080px;
             margin: 0 auto;
-        }
-
-        header {
-            margin-bottom: 4rem;
-            text-align: center;
-        }
-
-        .logo-area {
-            display: inline-flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        h1 {
-            font-size: 3rem;
-            font-weight: 700;
-            letter-spacing: -0.05em;
-            background: linear-gradient(to right, #818cf8, #2dd4bf);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
-        }
-
-        .subtitle {
-            color: var(--text-dim);
-            font-size: 1.1rem;
-            font-weight: 400;
-        }
-
-        .search-container {
-            position: relative;
-            max-width: 600px;
-            margin: 0 auto 3rem;
-        }
-
-        .search-box {
-            width: 100%;
-            background: var(--surface);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.25rem 1.5rem 1.25rem 3.5rem;
-            font-family: inherit;
-            font-size: 1.1rem;
-            color: var(--text);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        .search-box:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px var(--primary-glow);
-            transform: translateY(-2px);
-        }
-
-        .search-icon {
-            position: absolute;
-            left: 1.25rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-dim);
-        }
-
-        .stats-bar {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin-bottom: 2rem;
-            font-size: 0.9rem;
-            color: var(--text-dim);
-        }
-
-        .stat-item {
+            padding: var(--space-4) var(--space-5);
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: var(--space-5);
         }
 
-        .stat-value {
-            color: var(--text);
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            color: var(--text-h);
             font-weight: 600;
-        }
-
-        .protocol-list {
-            display: grid;
-            gap: 1.5rem;
-        }
-
-        .protocol-card {
-            background: var(--surface);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            overflow: hidden;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .protocol-card:hover {
-            border-color: rgba(129, 140, 248, 0.4);
-            transform: translateY(-3px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-
-        .protocol-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1.5rem 2rem;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .p-main-info {
-            display: flex;
-            align-items: center;
-            gap: 2rem;
-        }
-
-        .p-identity {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .p-chevron {
-            color: var(--text-dim);
-            transition: transform 0.3s;
-        }
-
-        .expanded .p-chevron {
-            transform: rotate(90deg);
-            color: var(--primary);
-        }
-
-        .p-name {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: var(--text);
+            font-size: 1.0625rem;
             letter-spacing: -0.01em;
         }
 
-        .p-packet-id {
-            font-family: var(--font-mono);
-            font-size: 0.8rem;
-            background: rgba(129, 140, 248, 0.1);
-            color: var(--primary);
-            padding: 0.25rem 0.6rem;
-            border-radius: 6px;
-            font-weight: 500;
+        .brand:hover {
+            text-decoration: none;
         }
 
-        .p-badges {
-            display: flex;
-            gap: 0.75rem;
-        }
-
-        .badge {
-            font-size: 0.75rem;
-            font-weight: 600;
-            padding: 0.25rem 0.75rem;
-            border-radius: 99px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .badge.reliable {
-            background: rgba(52, 211, 153, 0.1);
-            color: var(--success);
-        }
-
-        .badge.best-effort {
-            background: rgba(148, 163, 184, 0.1);
-            color: var(--text-dim);
-        }
-
-        .badge.ordered {
-            background: rgba(45, 212, 191, 0.1);
-            color: var(--secondary);
-        }
-
-        .badge.unordered {
-            background: rgba(148, 163, 184, 0.1);
-            color: var(--text-dim);
-        }
-
-        .p-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .action-btn {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border);
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            color: var(--text-dim);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .action-btn:hover {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-            transform: scale(1.05);
-        }
-
-        .content-area {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            background: rgba(15, 23, 42, 0.3);
-            border-top: 1px solid var(--border);
-        }
-
-        .expanded .content-area {
-            max-height: 2000px;
-            padding: 2rem;
-        }
-
-        .grid-layout {
+        .brand-mark {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, var(--accent), var(--accent-active));
+            color: var(--on-accent);
             display: grid;
-            grid-template-columns: 280px 1fr;
-            gap: 2rem;
+            place-items: center;
+            box-shadow: var(--shadow-1);
         }
 
-        .spec-summary {
-            padding-right: 2rem;
-            border-right: 1px solid var(--border);
-        }
-
-        .spec-title {
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--text-dim);
-            margin-bottom: 1.5rem;
-        }
-
-        .spec-item {
-            margin-bottom: 1.25rem;
-        }
-
-        .spec-label {
-            display: block;
-            font-size: 0.75rem;
-            color: var(--text-dim);
-            margin-bottom: 0.25rem;
-        }
-
-        .spec-value {
-            font-weight: 500;
-            color: var(--text);
-        }
-
-        .preview-container {
+        .app-tabs {
+            margin-left: auto;
             display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 0.5rem;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 0.3rem;
-            border-radius: 12px;
-            width: fit-content;
+            gap: var(--space-1);
         }
 
         .tab {
-            padding: 0.5rem 1.25rem;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-dim);
+            appearance: none;
+            border: none;
+            background: transparent;
+            font: inherit;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: var(--text);
+            padding: var(--space-2) var(--space-4);
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            border-radius: 9px;
-            transition: all 0.2s;
+            transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
         }
 
-        .tab.active {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 4px 12px rgba(129, 140, 248, 0.3);
+        .tab:hover {
+            background: var(--surface-hover);
+            color: var(--text-h);
         }
 
-        .code-view {
-            position: relative;
+        .tab[aria-current="page"] {
+            background: var(--accent-bg);
+            color: var(--accent);
+            font-weight: 600;
         }
 
-        pre {
-            background: #0b1120;
-            padding: 1.5rem;
-            border-radius: 16px;
-            font-family: var(--font-mono);
-            font-size: 0.85rem;
-            overflow-x: auto;
-            max-height: 500px;
+        .header-actions {
+            display: flex;
+            gap: var(--space-1);
+        }
+
+        .icon-btn {
+            appearance: none;
+            width: 36px;
+            height: 36px;
             border: 1px solid var(--border);
-            color: #e2e8f0;
+            background: var(--surface);
+            color: var(--text);
+            border-radius: var(--radius-sm);
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            transition: all var(--dur-fast) var(--ease);
+        }
+
+        .icon-btn:hover {
+            background: var(--surface-hover);
+            border-color: var(--border-strong);
+            color: var(--text-h);
+            text-decoration: none;
+        }
+
+        /* ---------- layout ---------- */
+
+        main {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: var(--space-7) var(--space-5) 96px;
+        }
+
+        .page-head {
+            margin-bottom: var(--space-7);
+        }
+
+        .page-head h1 {
+            font-size: 2rem;
+            letter-spacing: -0.02em;
+            margin-bottom: var(--space-3);
+        }
+
+        .lede {
+            max-width: 68ch;
+        }
+
+        .section {
+            margin-top: var(--space-7);
+        }
+
+        .section-head {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-3);
+            margin-bottom: var(--space-5);
+        }
+
+        .section-head h2 {
+            font-size: 1.125rem;
+        }
+
+        .section-head .count {
+            font-size: 0.875rem;
+            color: var(--text-subtle);
+        }
+
+        /* ---------- stats ---------- */
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: var(--space-4);
+            margin-top: var(--space-6);
+        }
+
+        .stat {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-5);
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--text-h);
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-label {
+            font-size: 0.8125rem;
+            color: var(--text-subtle);
+            margin-top: var(--space-1);
+        }
+
+        /* ---------- cards ---------- */
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--space-4);
+        }
+
+        .card {
+            display: block;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-5);
+            box-shadow: var(--shadow-1);
+            color: inherit;
+            transition: border-color var(--dur-fast) var(--ease),
+                box-shadow var(--dur-med) var(--ease-out),
+                transform var(--dur-med) var(--ease-out);
+        }
+
+        .card:hover {
+            border-color: var(--accent-border);
+            box-shadow: var(--shadow-2);
+            transform: translateY(-2px);
+            text-decoration: none;
+        }
+
+        .card h3 {
+            font-size: 1rem;
+            margin-bottom: var(--space-2);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .card p {
+            font-size: 0.875rem;
+            color: var(--text);
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card .card-meta {
+            margin-top: var(--space-4);
+            font-size: 0.75rem;
+            color: var(--text-subtle);
+            font-family: var(--mono);
+        }
+
+        /* ---------- chips / badges ---------- */
+
+        .chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+            margin-bottom: var(--space-5);
+        }
+
+        .chip {
+            appearance: none;
+            font: inherit;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            padding: var(--space-2) var(--space-4);
+            border-radius: var(--radius-pill);
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            cursor: pointer;
+            transition: all var(--dur-fast) var(--ease);
+        }
+
+        .chip:hover {
+            border-color: var(--border-strong);
+            background: var(--surface-hover);
+        }
+
+        .chip[aria-pressed="true"] {
+            background: var(--accent-bg);
+            border-color: var(--accent-border);
+            color: var(--accent);
+        }
+
+        .badge {
+            display: inline-block;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            padding: 2px var(--space-2);
+            border-radius: var(--radius-pill);
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+
+        .badge.accent {
+            background: var(--accent-bg);
+            color: var(--accent);
+            border-color: var(--accent-border);
+        }
+
+        .badge.neutral {
+            background: var(--surface-3);
+            color: var(--text-subtle);
+        }
+
+        .badge.warn {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        /* ---------- search ---------- */
+
+        .search {
+            position: relative;
+            margin-bottom: var(--space-5);
+        }
+
+        .search input {
+            width: 100%;
+            font: inherit;
+            font-size: 0.9375rem;
+            color: var(--text-h);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-4) var(--space-5) var(--space-4) 42px;
+            transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+        }
+
+        .search input::placeholder {
+            color: var(--text-placeholder);
+        }
+
+        .search input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--ring);
+        }
+
+        .search .search-icon {
+            position: absolute;
+            left: var(--space-4);
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-subtle);
+            pointer-events: none;
+            display: grid;
+        }
+
+        /* ---------- key catalog ---------- */
+
+        .key-list {
+            display: grid;
+            gap: var(--space-3);
+        }
+
+        .key-row {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-5);
+            box-shadow: var(--shadow-1);
+        }
+
+        .key-head {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: var(--space-3);
+            margin-bottom: var(--space-3);
+        }
+
+        .key-name {
+            font-family: var(--mono);
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: var(--text-h);
+            word-break: break-all;
+        }
+
+        .key-schema {
+            font-size: 0.8125rem;
+            font-family: var(--mono);
+            color: var(--text);
+            background: var(--code-bg);
+            border-radius: var(--radius-sm);
+            padding: var(--space-3) var(--space-4);
+            margin-bottom: var(--space-4);
+            overflow-wrap: anywhere;
+        }
+
+        .key-facts {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: var(--space-2) var(--space-4);
+            font-size: 0.8125rem;
+            align-items: baseline;
+        }
+
+        .key-facts dt {
+            color: var(--text-subtle);
+            white-space: nowrap;
+        }
+
+        .key-facts dd {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+        }
+
+        .app-tag {
+            font-size: 0.75rem;
+            font-family: var(--mono);
+            padding: 1px var(--space-2);
+            border-radius: var(--radius-sm);
+            background: var(--surface-3);
+            color: var(--text);
+        }
+
+        .app-tag:hover {
+            text-decoration: none;
+            background: var(--accent-bg);
+            color: var(--accent);
+        }
+
+        .key-source {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            color: var(--text-subtle);
+            overflow-wrap: anywhere;
+        }
+
+        .copy-btn {
+            appearance: none;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-subtle);
+            border-radius: var(--radius-sm);
+            padding: var(--space-1) var(--space-2);
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            transition: all var(--dur-fast) var(--ease);
+        }
+
+        .copy-btn:hover {
+            color: var(--accent);
+            border-color: var(--accent-border);
+            background: var(--accent-bg);
+        }
+
+        /* ---------- protocol registry ---------- */
+
+        .proto {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-1);
+            overflow: hidden;
+            transition: border-color var(--dur-fast) var(--ease);
+        }
+
+        .proto + .proto {
+            margin-top: var(--space-3);
+        }
+
+        .proto[open] {
+            border-color: var(--accent-border);
+        }
+
+        .proto summary {
+            list-style: none;
+            cursor: pointer;
+            padding: var(--space-5);
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+            transition: background var(--dur-fast) var(--ease);
+        }
+
+        .proto summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .proto summary:hover {
+            background: var(--surface-hover);
+        }
+
+        .proto .chevron {
+            color: var(--text-subtle);
+            display: grid;
+            transition: transform var(--dur-med) var(--ease);
+        }
+
+        .proto[open] .chevron {
+            transform: rotate(90deg);
+            color: var(--accent);
+        }
+
+        .proto-name {
+            font-family: var(--mono);
+            font-weight: 500;
+            color: var(--text-h);
+        }
+
+        .proto-id {
+            font-family: var(--mono);
+            font-size: 0.8125rem;
+            color: var(--accent);
+            background: var(--accent-bg);
+            padding: 1px var(--space-2);
+            border-radius: var(--radius-sm);
+        }
+
+        .proto-badges {
+            margin-left: auto;
+            display: flex;
+            gap: var(--space-2);
+        }
+
+        .proto-body {
+            border-top: 1px solid var(--border);
+            background: var(--surface-2);
+            padding: var(--space-5);
+        }
+
+        .field-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .field-table th {
+            text-align: left;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-subtle);
+            padding: 0 var(--space-4) var(--space-2) 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .field-table td {
+            padding: var(--space-3) var(--space-4) var(--space-3) 0;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--mono);
+            font-size: 0.8125rem;
+            color: var(--text);
+        }
+
+        .field-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .field-table td.name {
+            color: var(--text-h);
+        }
+
+        .proto-links {
+            margin-top: var(--space-5);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-5);
+            font-size: 0.8125rem;
+        }
+
+        /* ---------- doc viewer ---------- */
+
+        .doc-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 220px;
+            gap: var(--space-7);
+            align-items: start;
+        }
+
+        /* Grid items default to min-width:auto, so a wide contract table or a
+           long code block would push the article column past the viewport and
+           shove the ToC off-screen. Let both columns shrink and make the
+           inner scrollers do their job. */
+        .doc-layout > * {
+            min-width: 0;
+        }
+
+        .doc-toc {
+            position: sticky;
+            top: 88px;
+            font-size: 0.8125rem;
+            border-left: 1px solid var(--border);
+            padding-left: var(--space-5);
+        }
+
+        .doc-toc strong {
+            display: block;
+            color: var(--text-subtle);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: var(--space-3);
+        }
+
+        .doc-toc a {
+            display: block;
+            padding: var(--space-1) 0;
+            color: var(--text);
+        }
+
+        .doc-toc a:hover {
+            color: var(--accent);
+        }
+
+        .doc-toc a.sub {
+            padding-left: var(--space-4);
+            font-size: 0.78125rem;
+            color: var(--text-subtle);
+        }
+
+        .doc-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-5);
+            margin-bottom: var(--space-6);
+            font-size: 0.875rem;
+        }
+
+        .markdown {
+            overflow-wrap: break-word;
+        }
+
+        .markdown h1 {
+            font-size: 1.75rem;
+            letter-spacing: -0.02em;
+            margin-bottom: var(--space-5);
+        }
+
+        .markdown h2 {
+            font-size: 1.25rem;
+            margin: var(--space-7) 0 var(--space-4);
+            padding-bottom: var(--space-2);
+            border-bottom: 1px solid var(--border);
+            scroll-margin-top: 88px;
+        }
+
+        .markdown h3 {
+            font-size: 1rem;
+            margin: var(--space-6) 0 var(--space-3);
+            scroll-margin-top: 88px;
+        }
+
+        .markdown p,
+        .markdown ul,
+        .markdown ol {
+            margin-bottom: var(--space-5);
+        }
+
+        .markdown ul,
+        .markdown ol {
+            padding-left: 1.4em;
+        }
+
+        .markdown li {
+            margin-bottom: var(--space-2);
+        }
+
+        .markdown code {
+            font-size: 0.875em;
+            background: var(--code-bg);
+            padding: 1px 5px;
+            border-radius: 5px;
+            color: var(--text-h);
+        }
+
+        .markdown pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-5);
+            overflow-x: auto;
+            margin-bottom: var(--space-5);
+            font-size: 0.8125rem;
             line-height: 1.7;
         }
 
-        .copy-code-btn {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--text-dim);
-            padding: 0.4rem 0.8rem;
-            border-radius: 8px;
-            font-size: 0.75rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            transition: all 0.2s;
+        .markdown pre code {
+            background: none;
+            padding: 0;
+            font-size: inherit;
         }
 
-        .copy-code-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
+        .markdown blockquote {
+            border-left: 3px solid var(--accent-border);
+            background: var(--accent-bg);
+            padding: var(--space-4) var(--space-5);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            margin-bottom: var(--space-5);
+        }
+
+        .markdown blockquote p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Wide contract tables scroll inside their own container so the page
+           body never scrolls horizontally. */
+        .table-scroll {
+            overflow-x: auto;
+            margin-bottom: var(--space-5);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+        }
+
+        .markdown table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.8125rem;
+        }
+
+        .markdown th,
+        .markdown td {
+            text-align: left;
+            padding: var(--space-3) var(--space-4);
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        .markdown th {
+            background: var(--surface-2);
+            color: var(--text-h);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .markdown tr:last-child td {
+            border-bottom: none;
+        }
+
+        .markdown hr {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: var(--space-7) 0;
+        }
+
+        /* ---------- misc ---------- */
+
+        .empty {
+            text-align: center;
+            padding: var(--space-7);
+            color: var(--text-subtle);
+            border: 1px dashed var(--border);
+            border-radius: var(--radius-md);
+        }
+
+        .notice {
+            background: var(--danger-bg);
+            border: 1px solid var(--danger);
+            color: var(--text-h);
+            border-radius: var(--radius-md);
+            padding: var(--space-4) var(--space-5);
+            margin-bottom: var(--space-6);
+            font-size: 0.875rem;
+        }
+
+        .notice code {
+            background: var(--surface);
+            padding: 1px 5px;
+            border-radius: 5px;
+        }
+
+        .file-list {
+            display: grid;
+            gap: var(--space-2);
+        }
+
+        .file-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-3) var(--space-4);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--surface);
+            font-family: var(--mono);
+            font-size: 0.8125rem;
+            color: var(--text);
+        }
+
+        .file-row:hover {
+            border-color: var(--accent-border);
+            background: var(--accent-bg);
+            text-decoration: none;
+        }
+
+        .file-row .grow {
+            flex: 1;
+            overflow-wrap: anywhere;
         }
 
         #toast {
             position: fixed;
-            bottom: 2rem;
             left: 50%;
-            transform: translateX(-50%) translateY(100px);
-            background: var(--primary);
-            color: white;
-            padding: 1rem 2rem;
-            border-radius: 12px;
-            font-weight: 600;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
-            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
+            bottom: var(--space-6);
+            transform: translateX(-50%) translateY(120%);
+            background: var(--text-h);
+            color: var(--bg);
+            padding: var(--space-4) var(--space-6);
+            border-radius: var(--radius-pill);
+            box-shadow: var(--shadow-3);
+            font-size: 0.875rem;
+            font-weight: 500;
+            z-index: 30;
+            /* Hidden rather than merely translated away: an empty pill still
+               paints (and shows up in full-page screenshots) otherwise. */
+            visibility: hidden;
+            transition: transform var(--dur-med) var(--ease-out), visibility var(--dur-med);
         }
 
         #toast.visible {
+            visibility: visible;
             transform: translateX(-50%) translateY(0);
         }
 
-        .loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--bg);
-            z-index: 2000;
+        footer {
+            border-top: 1px solid var(--border);
+            background: var(--surface-2);
+            padding: var(--space-6) var(--space-5);
+            font-size: 0.8125rem;
+            color: var(--text-subtle);
+        }
+
+        .footer-inner {
+            max-width: 1080px;
+            margin: 0 auto;
             display: flex;
-            flex-direction: column;
+            flex-wrap: wrap;
+            gap: var(--space-4);
             align-items: center;
-            justify-content: center;
-            gap: 2rem;
-            transition: opacity 0.5s;
         }
 
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--border);
-            border-top: 4px solid var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+        .footer-inner .grow {
+            flex: 1;
         }
 
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        @media (max-width: 800px) {
-            .grid-layout {
+        @media (max-width: 860px) {
+            .doc-layout {
                 grid-template-columns: 1fr;
             }
 
-            .spec-summary {
-                border-right: none;
-                border-bottom: 1px solid var(--border);
-                padding-right: 0;
-                padding-bottom: 1rem;
+            .doc-toc {
+                display: none;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .app-header-inner {
+                flex-wrap: wrap;
+                gap: var(--space-3);
             }
 
-            h1 {
-                font-size: 2rem;
+            .app-tabs {
+                order: 3;
+                width: 100%;
+                margin-left: 0;
+                overflow-x: auto;
             }
 
-            .p-main-info {
-                gap: 1rem;
+            .header-actions {
+                margin-left: auto;
+            }
+
+            main {
+                padding-top: var(--space-6);
+            }
+
+            .page-head h1 {
+                font-size: 1.5rem;
+            }
+
+            .key-facts {
+                grid-template-columns: 1fr;
+                gap: var(--space-1);
+            }
+
+            .key-facts dt {
+                margin-top: var(--space-2);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                transition: none !important;
+                animation: none !important;
             }
         }
     </style>
 </head>
 
 <body>
-
-    <div id="loading" class="loading-screen">
-        <div class="spinner"></div>
-        <div class="subtitle">Fetching Protocol Ecosystem...</div>
-    </div>
-
-    <div id="file-notice"
-        style="display: none; background: var(--warning); color: #000; padding: 0.75rem; text-align: center; font-size: 0.85rem; font-weight: 600; position: sticky; top: 0; z-index: 1500;">
-        <i data-lucide="alert-triangle" size="16" style="vertical-align: middle; margin-right: 0.5rem;"></i>
-        Browser restricted local file access. To see protocol details, run:
-        <code
-            style="background: rgba(0,0,0,0.1); padding: 0.2rem 0.4rem; border-radius: 4px; margin: 0 0.5rem;">npx serve output</code>
-        or
-        <code
-            style="background: rgba(0,0,0,0.1); padding: 0.2rem 0.4rem; border-radius: 4px; margin-left: 0.5rem;">python -m http.server -d output</code>
-    </div>
-
-    <div class="container">
-        <header>
-            <div class="logo-area">
-                <i data-lucide="zap" fill="currentColor" color="var(--primary)" size="32"></i>
-                <h1>Protocol Registry</h1>
-            </div>
-            <div class="subtitle">Next-gen binary protocol specifications</div>
-        </header>
-
-        <div class="search-container">
-            <i data-lucide="search" class="search-icon" size="20"></i>
-            <input type="text" id="search" class="search-box" placeholder="Search protocol name, ID, or flags...">
-        </div>
-
-        <div class="stats-bar">
-            <div class="stat-item">
-                <i data-lucide="layers" size="16"></i>
-                <span class="stat-value" id="count">0</span>
-                <span>Protocols</span>
+    <header class="app-header">
+        <div class="app-header-inner">
+            <a class="brand" href="#/">
+                <span class="brand-mark"><i data-lucide="git-compare-arrows" width="18" height="18"></i></span>
+                Protocol
+            </a>
+            <nav class="app-tabs" id="tabs">
+                <button class="tab" data-route="/">概要</button>
+                <button class="tab" data-route="/keys">キーカタログ</button>
+                <button class="tab" data-route="/protocols">パケット定義</button>
+            </nav>
+            <div class="header-actions">
+                <button class="icon-btn" id="theme-toggle" title="テーマ切り替え" aria-label="テーマ切り替え">
+                    <i data-lucide="sun-moon" width="18" height="18"></i>
+                </button>
+                <a class="icon-btn" id="repo-link" href="https://github.com/tik-choco-lab/protocol" target="_blank"
+                    rel="noopener" title="GitHub リポジトリ" aria-label="GitHub リポジトリ">
+                    <i data-lucide="github" width="18" height="18"></i>
+                </a>
             </div>
         </div>
+    </header>
 
-        <div id="list" class="protocol-list"></div>
-    </div>
+    <main id="view" aria-live="polite">
+        <p class="empty">読み込み中…</p>
+    </main>
 
-    <div id="toast">
-        <i data-lucide="check" size="20"></i>
-        <span id="toast-msg">Copied!</span>
-    </div>
+    <footer>
+        <div class="footer-inner">
+            <span class="grow">tik-choco 系アプリのデータ共有契約とプロトコル定義</span>
+            <a href="https://github.com/tik-choco-lab/protocol" target="_blank" rel="noopener">GitHub</a>
+        </div>
+    </footer>
+
+    <div id="toast" role="status"></div>
 
     <script>
-        let protocols = [];
-        const list = document.getElementById('list');
-        const search = document.getElementById('search');
-        const toast = document.getElementById('toast');
-        const loading = document.getElementById('loading');
+        'use strict';
 
-        async function fetchJSON(path) {
+        const REPO = 'https://github.com/tik-choco-lab/protocol';
+        const BRANCH = 'main';
+        const view = document.getElementById('view');
+        const toastEl = document.getElementById('toast');
+
+        /** site-index.json, generated by scripts/gen-site-index.mjs. */
+        let data = null;
+        /** Unique keys aggregated across every per-app catalog (see buildKeyIndex). */
+        let keyIndex = [];
+
+        // ---------- utilities ----------
+
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+
+        const uniq = (arr) => [...new Set(arr)];
+
+        function toast(msg) {
+            toastEl.textContent = msg;
+            toastEl.classList.add('visible');
+            clearTimeout(toast._t);
+            toast._t = setTimeout(() => toastEl.classList.remove('visible'), 2200);
+        }
+
+        async function copy(text) {
             try {
-                const res = await fetch(path);
-                if (!res.ok) throw new Error();
-                return await res.json();
-            } catch (e) {
-                return null;
+                await navigator.clipboard.writeText(text);
+                toast('コピーしました');
+            } catch {
+                toast('コピーできませんでした');
             }
         }
 
-        async function fetchText(path) {
-            try {
-                const res = await fetch(path);
-                if (!res.ok) return `Error loading: ${path}`;
-                return await res.text();
-            } catch (e) {
-                return `File access restricted. Viewing locally? Use copy buttons.`;
+        const ghBlob = (path) => `${REPO}/blob/${BRANCH}/${path}`;
+        const docRoute = (path) => `#/doc/${encodeURIComponent(path)}`;
+
+        // ---------- theme ----------
+
+        const THEME_KEY = 'tc-protocol-theme';
+
+        function applyTheme(mode) {
+            // "system" clears the attribute so the prefers-color-scheme block wins.
+            if (mode === 'system') document.documentElement.removeAttribute('data-theme');
+            else document.documentElement.setAttribute('data-theme', mode);
+        }
+
+        function initTheme() {
+            let stored = null;
+            try { stored = localStorage.getItem(THEME_KEY); } catch { /* private mode */ }
+            applyTheme(stored || 'system');
+
+            document.getElementById('theme-toggle').addEventListener('click', () => {
+                const prefersDark = matchMedia('(prefers-color-scheme: dark)').matches;
+                const current = document.documentElement.getAttribute('data-theme')
+                    || (prefersDark ? 'dark' : 'light');
+                const next = current === 'dark' ? 'light' : 'dark';
+                applyTheme(next);
+                try { localStorage.setItem(THEME_KEY, next); } catch { /* ignore */ }
+            });
+        }
+
+        // ---------- key index ----------
+
+        /**
+         * Collapse the per-app catalogs into one row per distinct key. A key
+         * documented in several app files (the `tc-shared-*` bus keys are in up
+         * to seven) becomes a single entry that names every app whose catalog
+         * mentions it — that cross-app view is the thing no individual doc shows.
+         */
+        function buildKeyIndex() {
+            const byKey = new Map();
+            for (const app of data.apps) {
+                for (const row of app.keys) {
+                    let entry = byKey.get(row.key);
+                    if (!entry) {
+                        entry = {
+                            key: row.key, schema: row.schema, writers: [], readers: [],
+                            sources: [], documentedIn: [], crossApp: false
+                        };
+                        byKey.set(row.key, entry);
+                    }
+                    // Keep the longest schema description — the owning app's
+                    // catalog usually spells it out while readers abbreviate.
+                    if (row.schema.length > entry.schema.length) entry.schema = row.schema;
+                    entry.writers.push(...row.writers);
+                    entry.readers.push(...row.readers);
+                    if (row.source) entry.sources.push(row.source);
+                    entry.documentedIn.push(app.app);
+                    entry.crossApp = entry.crossApp || row.crossApp;
+                }
+            }
+            return [...byKey.values()].map((e) => ({
+                ...e,
+                writers: uniq(e.writers),
+                readers: uniq(e.readers),
+                sources: uniq(e.sources),
+                documentedIn: uniq(e.documentedIn),
+                // "Shared" = more than one app touches it, from either side.
+                shared: uniq([...e.writers, ...e.readers]).length > 1,
+                haystack: [e.key, e.schema, ...e.sources].join(' ').toLowerCase()
+            })).sort((a, b) => {
+                if (a.shared !== b.shared) return a.shared ? -1 : 1;
+                return a.key.localeCompare(b.key);
+            });
+        }
+
+        // ---------- routing ----------
+
+        function parseRoute() {
+            const hash = location.hash.replace(/^#/, '') || '/';
+            const docMatch = hash.match(/^\/doc\/(.+)$/);
+            if (docMatch) return { name: 'doc', path: decodeURIComponent(docMatch[1]) };
+            if (hash.startsWith('/keys')) return { name: 'keys' };
+            if (hash.startsWith('/protocols')) return { name: 'protocols' };
+            return { name: 'overview' };
+        }
+
+        function syncTabs(route) {
+            const active = route.name === 'keys' ? '/keys'
+                : route.name === 'protocols' ? '/protocols'
+                    : route.name === 'overview' ? '/' : null;
+            for (const tab of document.querySelectorAll('#tabs .tab')) {
+                if (active && tab.dataset.route === active) tab.setAttribute('aria-current', 'page');
+                else tab.removeAttribute('aria-current');
             }
         }
 
-        async function init() {
-            if (window.location.protocol === 'file:') {
-                document.getElementById('file-notice').style.display = 'block';
-                protocols = [
-                    { name: "add_item", packet_id: 1, packet_id_hex: "0x0001", reliable: true, ordered: true },
-                    { name: "base", packet_id: 2, packet_id_hex: "0x0002", reliable: true, ordered: true },
-                    { name: "update_equip", packet_id: 3, packet_id_hex: "0x0003", reliable: true, ordered: true },
-                    { name: "update_position", packet_id: 4, packet_id_hex: "0x0004", reliable: false, ordered: false }
-                ];
-                loading.style.display = 'none';
-                render();
+        async function render() {
+            const route = parseRoute();
+            syncTabs(route);
+            if (route.name === 'doc') await renderDoc(route.path);
+            else if (route.name === 'keys') renderKeys();
+            else if (route.name === 'protocols') renderProtocols();
+            else renderOverview();
+            lucide.createIcons();
+            // Only reset scroll on a view change, so in-page anchors still work.
+            if (!location.hash.includes('#', 1)) window.scrollTo(0, 0);
+        }
+
+        // ---------- views ----------
+
+        function renderOverview() {
+            const keyCount = keyIndex.length;
+            const sharedCount = keyIndex.filter((k) => k.shared).length;
+
+            view.innerHTML = `
+                <div class="page-head">
+                    <h1>tik-choco データ契約リファレンス</h1>
+                    <p class="lede">
+                        tik-choco 系アプリは同一オリジンのサブパスで配信され、<code>localStorage</code> と
+                        mistlib の OPFS バックエンドを共有しています。ここはその暗黙の契約
+                        —— どのアプリがどのキーを書き、誰が読むのか —— を明文化したリファレンスです。
+                    </p>
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="stat-value">${data.contracts.length}</div>
+                            <div class="stat-label">共有契約</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">${data.apps.length}</div>
+                            <div class="stat-label">アプリ</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">${keyCount}</div>
+                            <div class="stat-label">キー(うち共有 ${sharedCount})</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">${data.protocols.length}</div>
+                            <div class="stat-label">パケット定義</div>
+                        </div>
+                    </div>
+                </div>
+
+                <section class="section">
+                    <div class="section-head">
+                        <h2>共有契約</h2>
+                        <span class="count">${data.contracts.length} 件</span>
+                    </div>
+                    <div class="card-grid">
+                        ${data.contracts.map((c) => `
+                            <a class="card" href="${docRoute(c.path)}">
+                                <h3><i data-lucide="file-text" width="16" height="16"></i>${esc(c.title)}</h3>
+                                <p>${esc(c.summary) || '<span style="color:var(--text-subtle)">—</span>'}</p>
+                                <div class="card-meta">${esc(c.slug)}.md</div>
+                            </a>`).join('')}
+                    </div>
+                </section>
+
+                <section class="section">
+                    <div class="section-head">
+                        <h2>アプリ別キーカタログ</h2>
+                        <span class="count">${data.apps.length} アプリ</span>
+                    </div>
+                    <div class="card-grid">
+                        ${data.apps.map((a) => `
+                            <a class="card" href="${docRoute(a.path)}">
+                                <h3><i data-lucide="package" width="16" height="16"></i>${esc(a.app)}</h3>
+                                <p>${esc(a.summary)}</p>
+                                <div class="card-meta">${a.keys.length} keys</div>
+                            </a>`).join('')}
+                    </div>
+                </section>
+
+                <section class="section">
+                    <div class="section-head">
+                        <h2>参照実装</h2>
+                        <span class="count">sync-vendored.mjs が各アプリへ配布する正本</span>
+                    </div>
+                    <div class="file-list">
+                        ${data.reference.map((r) => `
+                            <a class="file-row" href="${esc(r.path)}" target="_blank" rel="noopener">
+                                <i data-lucide="file-code-2" width="15" height="15"></i>
+                                <span class="grow">${esc(r.name)}.${esc(r.lang)}</span>
+                                <span class="badge neutral">${esc(r.lang)}</span>
+                            </a>`).join('')}
+                    </div>
+                </section>
+
+                <section class="section">
+                    <div class="section-head">
+                        <h2>型定義</h2>
+                        <span class="count">コピー&参照用。import しない</span>
+                    </div>
+                    <div class="file-list">
+                        ${data.types.map((t) => `
+                            <a class="file-row" href="${esc(t.path)}" target="_blank" rel="noopener">
+                                <i data-lucide="file-type-2" width="15" height="15"></i>
+                                <span class="grow">${esc(t.app)}.d.ts</span>
+                            </a>`).join('')}
+                    </div>
+                </section>`;
+        }
+
+        function renderKeys() {
+            view.innerHTML = `
+                <div class="page-head">
+                    <h1>キーカタログ</h1>
+                    <p class="lede">
+                        全アプリの localStorage キーを1つに束ねた横断ビュー。同じキーが複数のアプリの
+                        カタログに現れる場合はここで1行にまとまり、書き手と読み手が一覧できます。
+                    </p>
+                </div>
+                <div class="search">
+                    <span class="search-icon"><i data-lucide="search" width="18" height="18"></i></span>
+                    <input type="search" id="key-search" placeholder="キー名・スキーマ・定義元ファイルで検索…"
+                        autocomplete="off" spellcheck="false">
+                </div>
+                <div class="chip-row" id="key-filters">
+                    <button class="chip" data-filter="shared" aria-pressed="false">共有キーのみ</button>
+                    ${data.apps.map((a) => `
+                        <button class="chip" data-app="${esc(a.app)}" aria-pressed="false">${esc(a.app)}</button>`).join('')}
+                </div>
+                <div class="key-list" id="key-list"></div>`;
+
+            const state = { q: '', shared: false, apps: new Set() };
+            const listEl = document.getElementById('key-list');
+
+            function draw() {
+                const rows = keyIndex.filter((k) => {
+                    if (state.shared && !k.shared) return false;
+                    if (state.apps.size) {
+                        const touching = new Set([...k.writers, ...k.readers, ...k.documentedIn]);
+                        if (![...state.apps].some((a) => touching.has(a))) return false;
+                    }
+                    return !state.q || k.haystack.includes(state.q);
+                });
+
+                if (!rows.length) {
+                    listEl.innerHTML = '<p class="empty">該当するキーがありません</p>';
+                    return;
+                }
+
+                listEl.innerHTML = rows.map((k) => `
+                    <article class="key-row">
+                        <div class="key-head">
+                            <span class="key-name">${esc(k.key)}</span>
+                            ${k.shared ? '<span class="badge accent">共有</span>' : ''}
+                            ${k.documentedIn.length > 1
+                        ? `<span class="badge neutral">${k.documentedIn.length} 文書に記載</span>` : ''}
+                            <button class="copy-btn" data-copy="${esc(k.key)}" title="キー名をコピー"
+                                aria-label="キー名をコピー">
+                                <i data-lucide="copy" width="14" height="14"></i>
+                            </button>
+                        </div>
+                        ${k.schema ? `<div class="key-schema">${esc(k.schema)}</div>` : ''}
+                        <dl class="key-facts">
+                            <dt>書き手</dt><dd>${appTags(k.writers)}</dd>
+                            <dt>読み手</dt><dd>${appTags(k.readers)}</dd>
+                            ${k.sources.length
+                        ? `<dt>定義元</dt><dd><span class="key-source">${esc(k.sources.join(' / '))}</span></dd>`
+                        : ''}
+                        </dl>
+                    </article>`).join('');
+                lucide.createIcons();
+            }
+
+            /** App names link through to that app's catalog when one exists. */
+            function appTags(names) {
+                if (!names.length) return '<span class="key-source">—</span>';
+                return names.map((n) => {
+                    const app = data.apps.find((a) => a.app === n);
+                    return app
+                        ? `<a class="app-tag" href="${docRoute(app.path)}">${esc(n)}</a>`
+                        : `<span class="app-tag">${esc(n)}</span>`;
+                }).join('');
+            }
+
+            const input = document.getElementById('key-search');
+            input.addEventListener('input', () => {
+                state.q = input.value.trim().toLowerCase();
+                draw();
+            });
+
+            document.getElementById('key-filters').addEventListener('click', (e) => {
+                const chip = e.target.closest('.chip');
+                if (!chip) return;
+                if (chip.dataset.filter === 'shared') state.shared = !state.shared;
+                else if (state.apps.has(chip.dataset.app)) state.apps.delete(chip.dataset.app);
+                else state.apps.add(chip.dataset.app);
+                chip.setAttribute('aria-pressed', String(
+                    chip.dataset.filter === 'shared' ? state.shared : state.apps.has(chip.dataset.app)
+                ));
+                draw();
+            });
+
+            listEl.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-copy]');
+                if (btn) copy(btn.dataset.copy);
+            });
+
+            draw();
+        }
+
+        function renderProtocols() {
+            view.innerHTML = `
+                <div class="page-head">
+                    <h1>パケット定義</h1>
+                    <p class="lede">
+                        <code>cmd/pm</code>(Go TUI)が生成するバイナリプロトコル定義。厳密版は
+                        ビットオフセット付きの JSON、簡易版は編集しやすい YAML です。
+                    </p>
+                </div>
+                <div class="search">
+                    <span class="search-icon"><i data-lucide="search" width="18" height="18"></i></span>
+                    <input type="search" id="proto-search" placeholder="プロトコル名・パケットIDで検索…"
+                        autocomplete="off" spellcheck="false">
+                </div>
+                <div id="proto-list"></div>`;
+
+            const listEl = document.getElementById('proto-list');
+
+            function draw(q = '') {
+                const rows = data.protocols.filter((p) =>
+                    p.name.toLowerCase().includes(q) || (p.packet_id_hex || '').toLowerCase().includes(q));
+
+                if (!rows.length) {
+                    listEl.innerHTML = '<p class="empty">該当するプロトコルがありません</p>';
+                    return;
+                }
+
+                listEl.innerHTML = rows.map((p) => `
+                    <details class="proto" data-name="${esc(p.name)}">
+                        <summary>
+                            <span class="chevron"><i data-lucide="chevron-right" width="18" height="18"></i></span>
+                            <span class="proto-name">${esc(p.name)}</span>
+                            <span class="proto-id">${esc(p.packet_id_hex || '')}</span>
+                            <span class="proto-badges">
+                                <span class="badge ${p.reliable ? 'accent' : 'neutral'}">${p.reliable ? 'Reliable' : 'Best-Effort'}</span>
+                                <span class="badge ${p.ordered ? 'accent' : 'neutral'}">${p.ordered ? 'Ordered' : 'Unordered'}</span>
+                                <span class="badge neutral">${p.total_bits || 0} bits</span>
+                            </span>
+                        </summary>
+                        <div class="proto-body">
+                            <div class="fields">読み込み中…</div>
+                            <div class="proto-links">
+                                <a href="output/strict/${esc(p.name)}.json" target="_blank" rel="noopener">strict JSON</a>
+                                <a href="output/simple/${esc(p.name)}.yaml" target="_blank" rel="noopener">simple YAML</a>
+                            </div>
+                        </div>
+                    </details>`).join('');
+                lucide.createIcons();
+            }
+
+            // Field tables are fetched on first expand — five files at load time
+            // would be wasteful when most visitors open one.
+            listEl.addEventListener('toggle', async (e) => {
+                const el = e.target;
+                if (!(el instanceof HTMLDetailsElement) || !el.open || el.dataset.loaded) return;
+                el.dataset.loaded = '1';
+                const target = el.querySelector('.fields');
+                try {
+                    const res = await fetch(`output/strict/${el.dataset.name}.json`);
+                    if (!res.ok) throw new Error(String(res.status));
+                    const spec = await res.json();
+                    target.innerHTML = renderFields(spec);
+                } catch {
+                    target.innerHTML = '<p class="key-source">フィールド定義を読み込めませんでした。'
+                        + '上のリンクから直接開いてください。</p>';
+                }
+            }, true);
+
+            document.getElementById('proto-search').addEventListener('input', (e) =>
+                draw(e.target.value.trim().toLowerCase()));
+
+            draw();
+        }
+
+        function renderFields(spec) {
+            if (!spec.fields || !spec.fields.length) {
+                return '<p class="key-source">フィールドなし(空パケット)</p>';
+            }
+            return `
+                <table class="field-table">
+                    <thead>
+                        <tr><th>フィールド</th><th>型</th><th>ビット</th><th>範囲</th></tr>
+                    </thead>
+                    <tbody>${fieldRows(spec.fields, 0)}</tbody>
+                </table>`;
+        }
+
+        /**
+         * Struct fields carry their leaf fields in `children` (update_position's
+         * position/rotation, for example). Emit them as indented rows so the
+         * actual wire layout is visible rather than a bare "struct".
+         */
+        function fieldRows(fields, depth) {
+            return fields.map((f) => {
+                const indent = depth ? ` style="padding-left:${depth * 18}px"` : '';
+                const range = f.min !== undefined ? `${esc(f.min)} – ${esc(f.max)}` : '—';
+                const row = `
+                    <tr>
+                        <td class="name"${indent}>${depth ? '└ ' : ''}${esc(f.name)}</td>
+                        <td>${esc(f.type)}</td>
+                        <td>${esc(f.bit_range || `${f.bits} bits`)}</td>
+                        <td>${range}</td>
+                    </tr>`;
+                return row + (f.children ? fieldRows(f.children, depth + 1) : '');
+            }).join('');
+        }
+
+        async function renderDoc(docPath) {
+            view.innerHTML = '<p class="empty">読み込み中…</p>';
+
+            let md;
+            try {
+                const res = await fetch(docPath);
+                if (!res.ok) throw new Error(String(res.status));
+                md = await res.text();
+            } catch {
+                view.innerHTML = `
+                    <div class="page-head"><h1>読み込めませんでした</h1></div>
+                    <p class="notice">
+                        <code>${esc(docPath)}</code> を取得できませんでした。
+                        <a href="${ghBlob(docPath)}" target="_blank" rel="noopener">GitHub で開く</a>
+                    </p>
+                    <p><a href="#/">← 概要へ戻る</a></p>`;
                 return;
             }
 
-            try {
-                const data = await fetchJSON('./output/strict/manifest.json');
-                if (data && data.protocols) {
-                    protocols = data.protocols;
-                } else {
-                    throw new Error("Index not found");
+            const html = typeof marked !== 'undefined'
+                ? marked.parse(md, { gfm: true, mangle: false, headerIds: false })
+                : `<pre>${esc(md)}</pre>`;
+
+            view.innerHTML = `
+                <div class="doc-actions">
+                    <a href="#/"><i data-lucide="arrow-left" width="14" height="14"></i> 概要</a>
+                    <a href="${ghBlob(docPath)}" target="_blank" rel="noopener">GitHub で開く</a>
+                    <a href="${esc(docPath)}" target="_blank" rel="noopener">生の Markdown</a>
+                </div>
+                <div class="doc-layout">
+                    <article class="markdown" id="doc-body">${html}</article>
+                    <nav class="doc-toc" id="doc-toc"></nav>
+                </div>`;
+
+            const body = document.getElementById('doc-body');
+            rewriteDocLinks(body, docPath);
+            wrapTables(body);
+            buildToc(body, document.getElementById('doc-toc'));
+        }
+
+        /**
+         * Point relative links at the right place. Sibling `.md` files become
+         * in-page doc routes so navigation stays inside the viewer; everything
+         * else resolves against the document's own directory so it still opens.
+         */
+        function rewriteDocLinks(root, docPath) {
+            const dir = docPath.slice(0, docPath.lastIndexOf('/') + 1);
+            for (const a of root.querySelectorAll('a[href]')) {
+                const href = a.getAttribute('href');
+                if (/^(https?:|mailto:|#)/.test(href)) {
+                    if (/^https?:/.test(href)) {
+                        a.target = '_blank';
+                        a.rel = 'noopener';
+                    }
+                    continue;
                 }
-            } catch (e) {
-                console.warn("Manifest not found, using fallback:", e);
-                protocols = [
-                    { name: "add_item", packet_id: 1, packet_id_hex: "0x0001", reliable: true, ordered: true },
-                    { name: "base", packet_id: 2, packet_id_hex: "0x0002", reliable: true, ordered: true },
-                    { name: "update_equip", packet_id: 3, packet_id_hex: "0x0003", reliable: true, ordered: true },
-                    { name: "update_position", packet_id: 4, packet_id_hex: "0x0004", reliable: false, ordered: false }
-                ];
-            }
-
-            loading.style.display = 'none';
-            render();
-        }
-
-        function showToast(msg) {
-            document.getElementById('toast-msg').textContent = msg;
-            toast.classList.add('visible');
-            setTimeout(() => toast.classList.remove('visible'), 2500);
-        }
-
-        function copy(text, e) {
-            if (e) e.stopPropagation();
-            navigator.clipboard.writeText(text).then(() => showToast("Copied to clipboard"));
-        }
-
-        function toggleExpand(card, name) {
-            const isExpanded = card.classList.contains('expanded');
-            card.classList.toggle('expanded');
-            if (!isExpanded) {
-                loadPreview(card, name, 'json');
+                const [rawPath, hash] = href.split('#');
+                // `new URL` resolves `../` segments; strip the leading slash to
+                // get back to a repo-relative path.
+                const resolved = new URL(rawPath || '.', `https://x/${dir}`).pathname.slice(1);
+                a.setAttribute('href', /\.md$/.test(resolved)
+                    ? docRoute(resolved) + (hash ? `#${hash}` : '')
+                    : resolved);
             }
         }
 
-        async function loadPreview(card, name, type) {
-            const pre = card.querySelector('pre');
-            const tabs = card.querySelectorAll('.tab');
-
-            tabs.forEach(t => t.classList.toggle('active', t.dataset.type === type));
-            pre.innerHTML = `<span style="color: var(--text-dim)">Loading ${type.toUpperCase()} definition...</span>`;
-
-            const path = type === 'json' ? `./output/strict/${name}.json` : `./output/simple/${name}.yaml`;
-            const content = await fetchText(path);
-
-            if (type === 'json' && !content.includes('restricted')) {
-                pre.textContent = content;
-            } else {
-                pre.textContent = content;
+        /** Contract tables are wide; give each its own horizontal scroller. */
+        function wrapTables(root) {
+            for (const table of root.querySelectorAll('table')) {
+                const wrap = document.createElement('div');
+                wrap.className = 'table-scroll';
+                table.parentNode.insertBefore(wrap, table);
+                wrap.appendChild(table);
             }
         }
 
-        function getAbsoluteUrl(path) {
-            return new URL(path, window.location.href).href;
-        }
-
-        function render(filter = '') {
-            list.innerHTML = '';
-            const filtered = protocols.filter(p =>
-                p.name.toLowerCase().includes(filter.toLowerCase()) ||
-                p.packet_id_hex?.toLowerCase().includes(filter.toLowerCase())
-            );
-
-            document.getElementById('count').textContent = filtered.length;
-
-            filtered.forEach(p => {
-                const card = document.createElement('div');
-                card.className = 'protocol-card';
-
-                const fullUrl = getAbsoluteUrl(`./output/strict/${p.name}.json`);
-
-                card.innerHTML = `
-                    <div class="protocol-header" onclick="toggleExpand(this.parentElement, '${p.name}')">
-                        <div class="p-main-info">
-                            <i data-lucide="chevron-right" class="p-chevron" size="24"></i>
-                            <div class="p-identity">
-                                <span class="p-name">${p.name}</span>
-                                <span class="p-packet-id">${p.packet_id_hex || '0x????'}</span>
-                            </div>
-                            <div class="p-badges">
-                                <span class="badge ${p.reliable ? 'reliable' : 'best-effort'}">${p.reliable ? 'Reliable' : 'Best-Effort'}</span>
-                                <span class="badge ${p.ordered ? 'ordered' : 'unordered'}">${p.ordered ? 'Ordered' : 'Unordered'}</span>
-                            </div>
-                        </div>
-                        <div class="p-actions">
-                            <button class="action-btn" title="Copy Identifier" onclick="copy('${p.name}', event)">
-                                <i data-lucide="hash" size="18"></i>
-                            </button>
-                            <button class="action-btn" title="Open Source" onclick="window.open('./output/strict/${p.name}.json', '_blank'); event.stopPropagation();">
-                                <i data-lucide="external-link" size="18"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="content-area">
-                        <div class="grid-layout">
-                            <div class="spec-summary">
-                                <div class="spec-title">Specification Details</div>
-                                <div class="spec-item">
-                                    <span class="spec-label">Packet ID</span>
-                                    <span class="spec-value">${p.packet_id} (${p.packet_id_hex})</span>
-                                </div>
-                                <div class="spec-item">
-                                    <span class="spec-label">Total Size</span>
-                                    <span class="spec-value">${p.total_bits || 0} bits (~${p.total_bytes || 0} bytes)</span>
-                                </div>
-                                <div class="spec-item">
-                                    <span class="spec-label">QoS Policy</span>
-                                    <span class="spec-value">${p.reliable ? 'Reliable' : 'UDP/Best-Effort'}</span>
-                                </div>
-                                <div class="spec-item">
-                                    <span class="spec-label">Sequencing</span>
-                                    <span class="spec-value">${p.ordered ? 'Strictly Ordered' : 'Asynchronous'}</span>
-                                </div>
-                                <div style="margin-top: 2rem">
-                                    <button class="action-btn" style="width: 100%; gap: 0.5rem; font-size: 0.8rem; font-weight: 600;" onclick="copy('${fullUrl}')">
-                                        <i data-lucide="link" size="14"></i> Copy Spec Link
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="preview-container">
-                                <div class="tabs">
-                                    <div class="tab active" data-type="json" onclick="loadPreview(this.closest('.protocol-card'), '${p.name}', 'json')">Strict JSON</div>
-                                    <div class="tab" data-type="yaml" onclick="loadPreview(this.closest('.protocol-card'), '${p.name}', 'yaml')">Simple YAML</div>
-                                </div>
-                                <div class="code-view">
-                                    <pre></pre>
-                                    <button class="copy-code-btn" onclick="copy(this.previousElementSibling.textContent)">
-                                        <i data-lucide="clipboard" size="14"></i> Copy
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                list.appendChild(card);
+        function buildToc(body, tocEl) {
+            const headings = [...body.querySelectorAll('h2, h3')];
+            if (headings.length < 2) {
+                tocEl.remove();
+                return;
+            }
+            const used = new Set();
+            const items = headings.map((h) => {
+                let id = (h.textContent || '').trim().replace(/\s+/g, '-').replace(/[^\w\-一-龠ぁ-んァ-ヶー]/g, '');
+                if (!id || used.has(id)) id = `${id}-${used.size}`;
+                used.add(id);
+                h.id = id;
+                return `<a class="${h.tagName === 'H3' ? 'sub' : ''}" href="#${encodeURIComponent(id)}">${esc(h.textContent)}</a>`;
             });
-            lucide.createIcons();
+            tocEl.innerHTML = `<strong>目次</strong>${items.join('')}`;
+
+            // The router keys off `location.hash`; a bare `#id` would look like
+            // a route change, so scroll manually and leave the URL alone.
+            tocEl.addEventListener('click', (e) => {
+                const a = e.target.closest('a');
+                if (!a) return;
+                e.preventDefault();
+                const target = body.querySelector(`#${CSS.escape(decodeURIComponent(a.getAttribute('href').slice(1)))}`);
+                if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
         }
 
-        search.addEventListener('input', (e) => render(e.target.value));
-        init();
+        // ---------- boot ----------
+
+        document.getElementById('tabs').addEventListener('click', (e) => {
+            const tab = e.target.closest('.tab');
+            if (tab) location.hash = `#${tab.dataset.route}`;
+        });
+
+        window.addEventListener('hashchange', render);
+
+        async function boot() {
+            initTheme();
+            try {
+                const res = await fetch('site-index.json');
+                if (!res.ok) throw new Error(String(res.status));
+                data = await res.json();
+            } catch {
+                lucide.createIcons();
+                view.innerHTML = `
+                    <div class="page-head"><h1>Protocol</h1></div>
+                    <p class="notice">
+                        <strong>site-index.json を読み込めませんでした。</strong>
+                        ブラウザで <code>file://</code> から開いた場合、fetch がブロックされます。
+                        ローカルで見るには静的サーバー経由で開いてください:
+                        <code>npx serve .</code> もしくは <code>python -m http.server</code>。
+                    </p>
+                    <p>
+                        リポジトリを直接見る場合は
+                        <a href="${REPO}" target="_blank" rel="noopener">GitHub</a> へ。
+                    </p>`;
+                return;
+            }
+            keyIndex = buildKeyIndex();
+            await render();
+        }
+
+        boot();
     </script>
 </body>
 
