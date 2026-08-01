@@ -31,7 +31,7 @@ export interface AppSettings {
 /** キー: "tc-storage-room-id-v1" */
 export type RoomId = string;
 
-/** キー: "tc-storage-node-id-v1" (tc-chat から存在確認のみされる) */
+/** キー: "tc-storage-node-id-v1" */
 export type NodeId = string;
 
 /** キー: "tc-storage-browser-view-mode-v1" */

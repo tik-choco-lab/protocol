@@ -25,6 +25,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # index.html reads its navigation, key catalog and search index from
+      # site-index.json. Regenerating here means the published site is always
+      # current even when a docs commit forgot to refresh the committed copy.
+      - name: Refresh site index
+        run: node scripts/gen-site-index.mjs
+
       - name: Stage site content
         run: |
           mkdir -p _site
