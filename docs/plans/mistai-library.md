@@ -79,7 +79,11 @@ mistllm-wire v1 を包含し、サービス種別を追加する:
 - `provider_hello` に optional フィールドを追加(v1 のまま非破壊):
   - `models?: string[]` — tc-pdf-viewer be743f8 の拡張を正式化
   - `services?: string[]` — 提供サービス種別(`"chat"`, `"tts"`, `"stt"`, `"embedding"`)。
-    欠落時は `["chat"]` 扱い(既存 provider との互換)
+    欠落時は `["chat"]` 扱い(既存 provider との互換)。**(2026-07-12: 実装が確定し
+    [mistllm-wire.md](../data-contracts/docs/mistllm-wire.md) 本体へ昇格済み。合わせて
+    `llm_error.code`/`voice_error.code`(`"unsupported_service"`)も同時に本体へ昇格。
+    mistai v0.4.0 で実装済み。tc-mistllm コア・mistl は未実装だが、欠落時 chat 扱いの
+    既定で互換)**
 - 新サービスはメッセージ型を追加(型追加は非破壊、というのが
   mistllm-wire.md の既存互換ルール):
   - `tts_request` `{id, text, voice?, format?}` / `tts_response_chunk`
@@ -123,8 +127,11 @@ tc-note の `scripts/fetch-mistlib.mjs` + prebuild フック方式を踏襲す�
 
 - リポジトリ名・パッケージ名の確定(仮称 mistai)
 - room 命名規約: 現状はユーザー自由入力の生 roomId。サービス種別ごとに
-  room を分けるか、単一 room で `services` により多重化するか
-  (現行の 1room 制約下では単一 room 多重化が有利)
+  room を分けるか、単一 room で `services` により多重化するか。
+  **(2026-07-12 決定: 単一 room + `services` フィルタで解決。room 分割は不採用。
+  現行の 1room 制約下では単一 room 多重化が有利という当初案どおり、
+  [mistllm-wire.md](../data-contracts/docs/mistllm-wire.md) の
+  `provider_hello.services` 拡張として確定)**
 - tc-mistllm CLI(Rust)側の追従: `models`/`services` と新サービス型を
   protocol.rs にいつ実装するか
 - 音声データの チャンクサイズ上限と CID 参照への切替閾値

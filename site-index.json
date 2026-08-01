@@ -1,0 +1,2613 @@
+{
+  "generator": "scripts/gen-site-index.mjs",
+  "repo": "https://github.com/tik-choco-lab/protocol",
+  "contracts": [
+    {
+      "path": "docs/data-contracts/docs/SHARED_BUS.md",
+      "slug": "SHARED_BUS",
+      "title": "共有バス(sharedBus)仕様",
+      "summary": "tc-note / tc-storage / tc-pdf-viewer / tc-translate / tc-chat / tc-news / tc-town / tc-travel / tc-books / tc-lingo が 同一オリジンで動く前提を活かし、「CID ポインタを localStorage に置き、BroadcastChannel で変更を通知する」共有バスを提供する仕様。 tc-vrm-viewer は SharedAppName の一員として型上は予約済みだが、現時点ではまだこのファイ…"
+    },
+    {
+      "path": "docs/data-contracts/docs/app-manifest.md",
+      "slug": "app-manifest",
+      "title": "アプリマニフェスト(appManifest)仕様",
+      "summary": "各アプリが起動時に「自分はここにいる、このトピックを読み書きする」という自己申告レコードを localStorage に置くための、軽量・依存なしの契約。同一オリジンで動く他アプリが、相手アプリを 一度も開かずに「このアプリは今までにこの端末で起動したことがあるか」「共有バスのどのトピックに 関与しているか」を安価にチェックできるようにする。"
+    },
+    {
+      "path": "docs/data-contracts/docs/conventions.md",
+      "slug": "conventions",
+      "title": "規約",
+      "summary": "dev サーバーはアプリごとに別ポートで動くため localStorage/OPFS は共有されない。 クロスアプリ連携を確認する際は、本番相当の同一オリジン配信で行うこと(README.md 参照)。"
+    },
+    {
+      "path": "docs/data-contracts/docs/did-delegation.md",
+      "slug": "did-delegation",
+      "title": "DID 委譲チェーン v1",
+      "summary": "did-identity.md の共有 DID は「同一オリジンに閉じた1つの did:key」であり、 別ブラウザ・別マシン・dev環境(別ポート)では別 DID になるため「同一人物」を表現できない。"
+    },
+    {
+      "path": "docs/data-contracts/docs/did-identity.md",
+      "slug": "did-identity",
+      "title": "DID identity の統一仕様",
+      "summary": "tc-storage / tc-chat / tc-vrm-viewer / tc-news / tc-vrsns2 が共有する DID(did:key, Ed25519)を、単一の identity に 収束させるための仕様。docs/keys/tc-storage.md の「DID identity 実装の 重複」で指摘していた不統一は、この共有キー方式によって解消されている。"
+    },
+    {
+      "path": "docs/data-contracts/docs/encrypted-bundle.md",
+      "slug": "encrypted-bundle",
+      "title": "暗号化バンドル仕様 (encrypted-bundle)",
+      "summary": "ファイル/フォルダを mistlib storage (OPFS mistlib-blocks) 上で受け渡すための 中立なコンテナ形式。元は tc-storage の内部形式だったものを、folder-export / drive-index トピック(SHARED_BUS.md)の登場に伴い ファミリー共通のバージョン付き契約として昇格した。正準実装は tc-storage src/storage/domain.ts / src/crypto/crypto.ts、互換移植は tc-travel src/lib…"
+    },
+    {
+      "path": "docs/data-contracts/docs/global-articles-wire.md",
+      "slug": "global-articles-wire",
+      "title": "グローバル記事配信ワイヤ(tc-global-articles)",
+      "summary": "tik-choco ファミリーのアプリが「誰でも読める記事フィード」を1つの mistlib ルームで 共有するための契約。tc-news が最初の実装であり、以下は tc-news の src/lib/newsWire.ts / src/hooks/useNewsRoom.ts / src/lib/globalArticlesReader.ts から起こした仕様。実装が正、本ドキュメントはそれに追従する。"
+    },
+    {
+      "path": "docs/data-contracts/docs/llm-config.md",
+      "slug": "llm-config",
+      "title": "共有LLM設定(llmConfig)仕様",
+      "summary": "LLM/TTS/STT の接続設定(エンドポイント・APIキー)を、同一オリジンで動く tik-choco ファミリー全アプリで一度だけ設定すれば済むようにするための、軽量・依存なしの契約。 did-identity.md が採用している「共有キー」方式(アプリ名プレフィックスなし、 参加アプリ全員が読み書きする co-owned なキー)を LLM 接続設定にも適用したもの。"
+    },
+    {
+      "path": "docs/data-contracts/docs/mist-signaling.md",
+      "slug": "mist-signaling",
+      "title": "Mist signaling namespace(mistSignaling)仕様",
+      "summary": "mistlib(mist-web-wrapper)の MistNode を構築する際に必須となった Nostr シグナリング設定 inviteSalt/inviteCode を、tik-choco ファミリー全アプリで同一の値に固定するための契約。 sharedBus/appManifest/llmConfig と同じ vendor 配布方式(reference/ 参照実装 + protocol/scripts/sync-vendored.mjs)を採る。"
+    },
+    {
+      "path": "docs/data-contracts/docs/mistllm-wire.md",
+      "slug": "mistllm-wire",
+      "title": "tc-mistllm の P2P ワイヤプロトコル",
+      "summary": "tc-mistllm が mistlib の P2P ルーム上でやり取りする JSON メッセージの仕様。 consumer(LLM を利用する側)と provider(LLM を提供する側)がピア同士で直接メッセージを 送受信する(サーバー仲介なし)。ピアは信頼できないため、受信側は必ず全フィールドの 型・値を検証してから使うこと(自プロトコル内でも conventions.md の 「クロスアプリ読み取りの原則」と同じ防御的パースの姿勢を取る)。"
+    },
+    {
+      "path": "docs/data-contracts/docs/vrm-model-library.md",
+      "slug": "vrm-model-library",
+      "title": "VRMモデルライブラリ共有(IndexedDB)仕様",
+      "summary": "tc-vrm-viewer / tc-town / tc-travel が同一オリジンで共有する、VRMモデル本体(バイト列)の IndexedDB ストアの契約。SHARED_BUS.md の character-index トピックの vrmChecksum フィールドが指す実体がこれであり、稼働自体は以前からしていたが契約ドキュメントが 存在していなかった。本ドキュメントで正式に契約化する。"
+    }
+  ],
+  "apps": [
+    {
+      "app": "tc-books",
+      "path": "docs/data-contracts/docs/keys/tc-books.md",
+      "title": "tc-books の localStorage キー",
+      "summary": "複式簿記の会計/家計簿アプリ。mistlib 使用: あり(暗号化バックアップバンドルの storage_add CID保存に使う)",
+      "keys": [
+        {
+          "key": "tc-books:journal-v1",
+          "schema": "仕訳一覧",
+          "writers": [
+            "tc-books"
+          ],
+          "readers": [
+            "tc-books"
+          ],
+          "source": "tc-books本体(他worker実装中)",
+          "crossApp": false
+        },
+        {
+          "key": "tc-books:accounts-v1",
+          "schema": "勘定科目一覧",
+          "writers": [
+            "tc-books"
+          ],
+          "readers": [
+            "tc-books"
+          ],
+          "source": "tc-books本体(他worker実装中)",
+          "crossApp": false
+        },
+        {
+          "key": "tc-books:settings-v1",
+          "schema": "アプリ設定",
+          "writers": [
+            "tc-books"
+          ],
+          "readers": [
+            "tc-books"
+          ],
+          "source": "tc-books本体(他worker実装中)",
+          "crossApp": false
+        },
+        {
+          "key": "tc-books:theme",
+          "schema": "テーマ設定",
+          "writers": [
+            "tc-books"
+          ],
+          "readers": [
+            "tc-books"
+          ],
+          "source": "tc-books本体(他worker実装中)",
+          "crossApp": false
+        },
+        {
+          "key": "tc-books:node-id",
+          "schema": "mistlib ノードID",
+          "writers": [
+            "tc-books"
+          ],
+          "readers": [
+            "tc-books"
+          ],
+          "source": "tc-books本体(他worker実装中)",
+          "crossApp": false
+        },
+        {
+          "key": "tc-books:backup-publish-state-v1",
+          "schema": "{ v: 1; signature: string }(バックアップバンドルの内容シグネチャ。タイムスタンプ相当を除いたSHA-256)",
+          "writers": [
+            "tc-books"
+          ],
+          "readers": [
+            "tc-books"
+          ],
+          "source": "books-backup トピックの発行側変更検知用(無限churn防止)。契約対象外のアプリローカルキー",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-books-backup-v1",
+          "schema": "SharedRecord(meta は BooksBackupMeta。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-books"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の books-backup トピック",
+          "crossApp": true
+        }
+      ]
+    },
+    {
+      "app": "tc-chat",
+      "path": "docs/data-contracts/docs/keys/tc-chat.md",
+      "title": "tc-chat の localStorage キー",
+      "summary": "mistlib 使用: あり(tc-chat/src/lib/mistClient.ts、tc-chat/src/interop/tcStorageFiles.ts で tc-storage のファイルを CID 経由参照)",
+      "keys": [
+        {
+          "key": "tc-chat:node-id",
+          "schema": "string(mistlib ノードID)",
+          "writers": [
+            "tc-chat"
+          ],
+          "readers": [
+            "tc-chat"
+          ],
+          "source": "tc-chat/src/lib/mistClient.ts:28,31-34",
+          "crossApp": false
+        },
+        {
+          "key": "tc-chat:messages:<roomId>",
+          "schema": "ChatMessage[](プレフィックス+ルームID)",
+          "writers": [
+            "tc-chat"
+          ],
+          "readers": [
+            "tc-chat"
+          ],
+          "source": "tc-chat/src/lib/chatStore.ts:48,58-70",
+          "crossApp": false
+        },
+        {
+          "key": "tc-chat:project-posts:<roomId>",
+          "schema": "ProjectPost[](プレフィックス+ルームID)",
+          "writers": [
+            "tc-chat"
+          ],
+          "readers": [
+            "tc-chat"
+          ],
+          "source": "tc-chat/src/lib/chatStore.ts:49,83-95",
+          "crossApp": false
+        },
+        {
+          "key": "tc-chat:rooms",
+          "schema": "Room[]",
+          "writers": [
+            "tc-chat"
+          ],
+          "readers": [
+            "tc-chat"
+          ],
+          "source": "tc-chat/src/lib/chatStore.ts:50,116-124",
+          "crossApp": false
+        },
+        {
+          "key": "tc-chat:username",
+          "schema": "string",
+          "writers": [
+            "tc-chat"
+          ],
+          "readers": [
+            "tc-chat"
+          ],
+          "source": "tc-chat/src/lib/chatStore.ts:51,142-146",
+          "crossApp": false
+        },
+        {
+          "key": "tc-chat:board-view-mode",
+          "schema": "'board' | 'timeline'",
+          "writers": [
+            "tc-chat"
+          ],
+          "readers": [
+            "tc-chat"
+          ],
+          "source": "tc-chat/src/lib/chatStore.ts:52,107-111",
+          "crossApp": false
+        },
+        {
+          "key": "tc-chat-did-identity-v1",
+          "schema": "DID identity レコード(共有ストア優先のローカルミラー)",
+          "writers": [
+            "tc-chat"
+          ],
+          "readers": [
+            "tc-chat"
+          ],
+          "source": "tc-chat/src/crypto/didIdentity.ts:40",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-did-identity-cid-v1",
+          "schema": "string(共有 identity レコードの mistlib CID)",
+          "writers": [
+            "tc-chat",
+            "tc-storage",
+            "tc-vrm-viewer"
+          ],
+          "readers": [
+            "tc-storage",
+            "tc-chat",
+            "tc-vrm-viewer"
+          ],
+          "source": "tc-chat/src/crypto/didIdentity.ts:42。詳細は ../did-identity.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-snapshot-v1",
+          "schema": "StorageSnapshot(tc-storage 側の型。詳細は tc-storage.md)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage",
+            "tc-chat"
+          ],
+          "source": "tc-chat/src/interop/tcStorageFiles.ts:42,68-101。tc-chat は書き込まない",
+          "crossApp": true
+        },
+        {
+          "key": "tc-chat-note-article-consumed-v1",
+          "schema": "string(取込/既読済みレコードの updatedAt)",
+          "writers": [
+            "tc-chat"
+          ],
+          "readers": [
+            "tc-chat"
+          ],
+          "source": "tc-chat/src/hooks/useNoteArticleImport.ts:13。共有バス note-article(tc-note/tc-news 発行、tc-note.md 参照)の未取込ゲーティング用。詳細は ../SHARED_BUS.md",
+          "crossApp": false
+        }
+      ]
+    },
+    {
+      "app": "tc-home",
+      "path": "docs/data-contracts/docs/keys/tc-home.md",
+      "title": "tc-home の localStorage キー",
+      "summary": "tc-home はタスク指定外だったが、tik-choco/ 配下に存在し mistlib を使っているため 参考情報として記載する(未確定、要フォローアップ調査)。",
+      "keys": [
+        {
+          "key": "tc-home-sites",
+          "schema": "サイト一覧(未詳細調査)",
+          "writers": [
+            "tc-home"
+          ],
+          "readers": [
+            "tc-home"
+          ],
+          "source": "tc-home/src/hooks/useSites.ts:4",
+          "crossApp": false
+        },
+        {
+          "key": "tc-home-device-id",
+          "schema": "string",
+          "writers": [
+            "tc-home"
+          ],
+          "readers": [
+            "tc-home"
+          ],
+          "source": "tc-home/src/utils/device.ts:1",
+          "crossApp": false
+        },
+        {
+          "key": "tc-home-settings",
+          "schema": "アプリ設定(未詳細調査)",
+          "writers": [
+            "tc-home"
+          ],
+          "readers": [
+            "tc-home"
+          ],
+          "source": "tc-home/src/hooks/useSettings.ts:10",
+          "crossApp": false
+        }
+      ]
+    },
+    {
+      "app": "tc-lingo",
+      "path": "docs/data-contracts/docs/keys/tc-lingo.md",
+      "title": "tc-lingo の localStorage キー",
+      "summary": "外国語学習アプリ(SRS: 簡易SM-2ベースの間隔反復)。mistlib 使用: あり(AI Network 用 network.ts の MistNode に加えて、lingo-card-inbox トピック受信のため mistStorage.ts 経由の storage_add/storage_get(CIDストア)も使用。vendor は src/vendor/mistlib/{pkg,wrappers/web})。",
+      "keys": [
+        {
+          "key": "tc-lingo:cards-v1",
+          "schema": "Card[](SRSカード本体。下記参照)",
+          "writers": [
+            "tc-lingo"
+          ],
+          "readers": [
+            "tc-lingo"
+          ],
+          "source": "tc-lingo/src/lib/cards.ts:6",
+          "crossApp": false
+        },
+        {
+          "key": "tc-lingo:topics-v1",
+          "schema": "Topic[](練習テーマ一覧)",
+          "writers": [
+            "tc-lingo"
+          ],
+          "readers": [
+            "tc-lingo"
+          ],
+          "source": "tc-lingo/src/lib/topics.ts:7",
+          "crossApp": false
+        },
+        {
+          "key": "tc-lingo:attempts-v1",
+          "schema": "PracticeAttempt[](練習の出力+添削ラウンド履歴)",
+          "writers": [
+            "tc-lingo"
+          ],
+          "readers": [
+            "tc-lingo"
+          ],
+          "source": "tc-lingo/src/lib/topics.ts:8",
+          "crossApp": false
+        },
+        {
+          "key": "tc-lingo:settings-v1",
+          "schema": "LingoSettings(対象言語一覧/母語/プリセット/接続モード等)",
+          "writers": [
+            "tc-lingo"
+          ],
+          "readers": [
+            "tc-lingo"
+          ],
+          "source": "tc-lingo/src/lib/settings.ts:10",
+          "crossApp": false
+        },
+        {
+          "key": "tc-lingo:onboarding-done",
+          "schema": "\"1\"(初回オンボーディング完了フラグ)",
+          "writers": [
+            "tc-lingo"
+          ],
+          "readers": [
+            "tc-lingo"
+          ],
+          "source": "tc-lingo/src/lib/onboarding.ts:8",
+          "crossApp": false
+        },
+        {
+          "key": "tc-lingo:card-inbox-state-v1",
+          "schema": "{ v: 1; done: Record<itemId, 'imported' | 'dismissed'> }(上限1000件、古い順に間引き)",
+          "writers": [
+            "tc-lingo"
+          ],
+          "readers": [
+            "tc-lingo"
+          ],
+          "source": "lingo-card-inbox トピック受信の冪等状態。契約対象外のアプリローカルキー。詳細は ../SHARED_BUS.md の lingo-card-inbox トピック",
+          "crossApp": false
+        },
+        {
+          "key": "tc-lingo-mistllm-node-id-v1",
+          "schema": "string(UUID風ノードID)",
+          "writers": [
+            "tc-lingo"
+          ],
+          "readers": [
+            "tc-lingo"
+          ],
+          "source": "tc-lingo/src/lib/network.ts:24。AI Network(mistllm-wire、P2P LLM)と mistStorage.ts のCIDストアが共用するノード識別子。tc-translate の mistllm-node-id-v1 と同じ命名パターン",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-llm-config-v1",
+          "schema": "SharedLlmConfigV1(接続/モデル/TTS・STT/AI Networkルーム。詳細は ../llm-config.md)",
+          "writers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm",
+            "tc-lingo"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm",
+            "tc-lingo"
+          ],
+          "source": "tc-lingo/src/lib/llmConfig.ts。詳細は ../llm-config.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-lingo-card-inbox-v1",
+          "schema": "SharedRecord(meta は LingoCardInboxMeta。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-lingo"
+          ],
+          "source": "共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の lingo-card-inbox トピック",
+          "crossApp": true
+        }
+      ]
+    },
+    {
+      "app": "tc-mistllm",
+      "path": "docs/data-contracts/docs/keys/tc-mistllm.md",
+      "title": "tc-mistllm の localStorage キー",
+      "summary": "mistlib 使用: あり(tc-mistllm/src/lib/node.ts、tc-mistllm/src/lib/provider.ts。ただし grep では storage_add/storage_get の直接呼び出しは確認できず、mistlib のノード/P2P機能 のみ使用している可能性が高い。要追加調査)",
+      "keys": [
+        {
+          "key": "tc-mistllm:settings",
+          "schema": "{ role: 'provider' | 'consumer'; roomId: string }(Settings)",
+          "writers": [
+            "tc-mistllm"
+          ],
+          "readers": [
+            "tc-mistllm"
+          ],
+          "source": "tc-mistllm/src/lib/storage.ts:24-34",
+          "crossApp": false
+        },
+        {
+          "key": "tc-mistllm:nodeId",
+          "schema": "string(mistlib ノードID)",
+          "writers": [
+            "tc-mistllm"
+          ],
+          "readers": [
+            "tc-mistllm"
+          ],
+          "source": "tc-mistllm/src/lib/node.ts:14,17-20",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-llm-config-v1",
+          "schema": "SharedLlmConfigV1(接続/モデル/TTS・STT/AI Networkルーム。詳細は ../llm-config.md)",
+          "writers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "source": "tc-mistllm/src/lib/llmConfig.ts。詳細は ../llm-config.md",
+          "crossApp": false
+        }
+      ]
+    },
+    {
+      "app": "tc-news",
+      "path": "docs/data-contracts/docs/keys/tc-news.md",
+      "title": "tc-news の localStorage キー",
+      "summary": "mistlib 使用: あり(tc-news/src/lib/mistClient.ts。記事・翻訳ワイヤの本文を storage_add/ storage_get でCID保存し、P2Pルームで記事を配信する)。加えて @tik-choco/mistai ライブラリ (vendor コピー)経由でAIネットワーク(LLMチャット・音声合成/認識)にも接続する (詳細は ../mistllm-wire.md)。",
+      "keys": [
+        {
+          "key": "tc-news:app-settings",
+          "schema": "AppSettings(下記)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/appSettings.ts:8",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:provider-settings",
+          "schema": "{ ttsEnabled: boolean; networkConsumerEnabled: boolean; networkProviderEnabled: boolean; orchestratorPresetId: string; workerPresetId: string }(ProviderSettings)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/llmSettings.ts:34-45",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-llm-config-v1",
+          "schema": "SharedLlmConfigV1(接続/モデル/TTS・STT/AI Networkルーム。詳細は ../llm-config.md)",
+          "writers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "source": "tc-news/src/lib/llmConfig.ts。詳細は ../llm-config.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:feeds",
+          "schema": "FeedSource[](RSS/Atomフィード購読設定)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/feedStore.ts:5",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:feed-items",
+          "schema": "FeedItem[](取得済みフィード項目、上限500件)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/feedStore.ts:6",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:articles",
+          "schema": "NewsArticle[](自分が生成した記事、上限200件)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/articleStore.ts:8",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:programs",
+          "schema": "RadioProgram[](AI生成のラジオ番組、上限50件)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/programStore.ts:8",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:reactions",
+          "schema": "ReactionRecord[](受信した全リアクションのローカル集計、上限5000件)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/reactionStore.ts:28",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:translations",
+          "schema": "ArticleTranslation[](articleId×lang でキャッシュした翻訳、上限500件)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/translationStore.ts:9",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:muted-dids",
+          "schema": "string[](ミュートしたDID、上限200件)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/muteStore.ts:6",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:locale",
+          "schema": "string(UIロケール)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/i18n/index.tsx:17",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:theme",
+          "schema": "'light' | 'dark'",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/hooks/useTheme.ts:8",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:link-previews",
+          "schema": "OGPリンクプレビューのキャッシュ(URL→メタデータ)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/linkPreview.ts:120",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:page-extracts",
+          "schema": "本文抽出結果のキャッシュ(URL→抽出HTML、TTL付き)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/pageExtract.ts:250",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:evaluations",
+          "schema": "記事のLLM評価履歴(ローカル専用、P2Pで送信しない)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/articleEvaluation.ts:76",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:onboarding-done",
+          "schema": "\"1\"(初回オンボーディング完了フラグ)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/onboarding.ts:7",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:node-id",
+          "schema": "string(mistlib ノードID、UUID)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/mistClient.ts:53。@tik-choco/mistai の ConsumerClient にも同じキーを渡し、ニュースルームとAIネットワークで同一ノードIDを使う",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:shared-seen-ids",
+          "schema": "string[](既読記事ID、上限500件)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/hooks/useUnreadShared.ts:10",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:shared:<roomId>",
+          "schema": "NewsArticle[](ルームごとに受信した記事のキャッシュ、上限あり)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/newsWire.ts:106,165-179",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:shared-programs:<roomId>",
+          "schema": "RadioProgram[](ルームごとに受信した番組のキャッシュ)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/newsWire.ts:108,225-239",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:wirelog:<roomId>",
+          "schema": "署名済み ArticleWire/TranslationWire のログ(履歴同期のリプレイ用)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/newsWire.ts:107,313-330。詳細は ../global-articles-wire.md の「履歴同期」",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news:reactionlog:<roomId>",
+          "schema": "ReactionWire のログ(履歴同期のリプレイ用。記事/翻訳とは別ログ)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/lib/newsWire.ts:109,343-360",
+          "crossApp": false
+        },
+        {
+          "key": "tc-news-did-identity-v1",
+          "schema": "DID identity レコード(共有ストア優先のローカルミラー)",
+          "writers": [
+            "tc-news"
+          ],
+          "readers": [
+            "tc-news"
+          ],
+          "source": "tc-news/src/crypto/didIdentity.ts:40",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-did-identity-cid-v1",
+          "schema": "string(共有 identity レコードの mistlib CID)",
+          "writers": [
+            "tc-news",
+            "tc-storage",
+            "tc-chat",
+            "tc-vrm-viewer"
+          ],
+          "readers": [
+            "tc-storage",
+            "tc-chat",
+            "tc-vrm-viewer",
+            "tc-news"
+          ],
+          "source": "tc-news/src/crypto/didIdentity.ts:42。詳細は ../did-identity.md",
+          "crossApp": false
+        }
+      ]
+    },
+    {
+      "app": "tc-note",
+      "path": "docs/data-contracts/docs/keys/tc-note.md",
+      "title": "tc-note の localStorage キー",
+      "summary": "mistlib 使用: あり(tc-note/src/lib/mistlib.ts、storage_add/storage_get でノート本文をCID保存)",
+      "keys": [
+        {
+          "key": "tc-note:index",
+          "schema": "NoteMeta[](下記)",
+          "writers": [
+            "tc-note"
+          ],
+          "readers": [
+            "tc-note"
+          ],
+          "source": "tc-note/src/lib/mistlib.ts:12,37-50",
+          "crossApp": false
+        },
+        {
+          "key": "tc-note:folders",
+          "schema": "Folder[](下記)",
+          "writers": [
+            "tc-note"
+          ],
+          "readers": [
+            "tc-note"
+          ],
+          "source": "tc-note/src/lib/mistlib.ts:13,55-63",
+          "crossApp": false
+        },
+        {
+          "key": "tc-note:node-id",
+          "schema": "string(mistlib ノードID)",
+          "writers": [
+            "tc-note"
+          ],
+          "readers": [
+            "tc-note"
+          ],
+          "source": "tc-note/src/lib/mistlib.ts:14,67-70",
+          "crossApp": false
+        },
+        {
+          "key": "tc-note:llm-settings",
+          "schema": "{ embeddingModel: string | null; connection: \"api\" | \"network\"; providerModeEnabled: boolean }(下記)",
+          "writers": [
+            "tc-note"
+          ],
+          "readers": [
+            "tc-note"
+          ],
+          "source": "tc-note/src/lib/llmSettings.ts:23-31",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-llm-config-v1",
+          "schema": "SharedLlmConfigV1(接続/モデル/TTS・STT/AI Networkルーム。詳細は ../llm-config.md)",
+          "writers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "source": "tc-note/src/lib/llmConfig.ts。詳細は ../llm-config.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-note:collab-user",
+          "schema": "コラボ用ユーザー情報",
+          "writers": [
+            "tc-note"
+          ],
+          "readers": [
+            "tc-note"
+          ],
+          "source": "tc-note/src/hooks/useCollab.ts:13",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-ocr-markdown-index-v1",
+          "schema": "SharedRecord(共有バス、../SHARED_BUS.md参照)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-note/src/lib/importDocument.ts; tc-pdf-viewer/src/services/storage.js",
+          "crossApp": true
+        },
+        {
+          "key": "mist_ocr_markdown_index",
+          "schema": "Record<pdfName, string | { content: string } | { cid: string, updatedAt: number, summary?: string, summaryUpdatedAt?: number }>(裸CID文字列(最古)/{content}インライン(旧)/{cid,...}(現行)の3形式が dual-read 対象で混在。詳細は tc-pdf-viewer.md の特記事項)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-note/src/lib/importDocument.ts:20,71-83; tc-pdf-viewer/src/services/storage.js",
+          "crossApp": true
+        },
+        {
+          "key": "mist_translated_markdown_index",
+          "schema": "Record<pdfName, Record<lang, string | { content: string } | { cid: string, updatedAt: number }>>(mist_ocr_markdown_index と同じ3形式が混在)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-note/src/lib/importDocument.ts:21,141-165; tc-pdf-viewer/src/services/storage.js",
+          "crossApp": true
+        },
+        {
+          "key": "tc-translate-history-v1",
+          "schema": "TranslationHistoryEntry[]",
+          "writers": [
+            "tc-note",
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-translate"
+          ],
+          "source": "tc-note/src/lib/importTranslations.ts:9",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-note-article-v1",
+          "schema": "SharedRecord(meta は NoteArticleMeta。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-note",
+            "tc-news"
+          ],
+          "readers": [
+            "tc-chat"
+          ],
+          "source": "tc-note/src/lib/shareArticle.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の note-article トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-shared-storage-drive-inbox-v1",
+          "schema": "SharedRecord(meta は { items: DriveInboxItem[] }。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-note"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-note/src/lib/storageDriveInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の storage-drive-inbox トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-shared-note-doc-index-v1",
+          "schema": "SharedRecord(meta は { notes: NoteDocIndexEntry[] }。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-note"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-note/src/lib/noteDocExport.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の note-doc-index トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-shared-note-inbox-v1",
+          "schema": "SharedRecord(meta.items は FileHandoffItem[]。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-note"
+          ],
+          "source": "tc-note/src/lib/noteInbox.ts:42; tc-storage/src/storage/fileHandoff.ts。詳細は ../SHARED_BUS.md の pdf-viewer-inbox トピック(note-inbox は読み替えで同契約)",
+          "crossApp": true
+        },
+        {
+          "key": "tc-note-inbox-imported-v1",
+          "schema": "{ v: 1, ids: string[] }(上限1000件)",
+          "writers": [
+            "tc-note"
+          ],
+          "readers": [
+            "tc-note"
+          ],
+          "source": "tc-note/src/lib/noteInbox.ts:44",
+          "crossApp": false
+        }
+      ]
+    },
+    {
+      "app": "tc-pdf-viewer",
+      "path": "docs/data-contracts/docs/keys/tc-pdf-viewer.md",
+      "title": "tc-pdf-viewer の localStorage キー",
+      "summary": "mistlib 使用: あり(tc-pdf-viewer/src/lib/mistlib/、storage_add/storage_get で PDF/Markdown 本文をCID保存)",
+      "keys": [
+        {
+          "key": "mist_files_index",
+          "schema": "{ name, cid, folder, createdAt, updatedAt }[]",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/storage.js:9-24",
+          "crossApp": false
+        },
+        {
+          "key": "mist_custom_folders",
+          "schema": "string[](フォルダ名の配列。ユーザーが手動追加した空フォルダを保持するリストで、mist_files_index の各エントリの folder 由来のフォルダ名と合算して表示する)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/components/sidebar/sidebarUtils.js:79-82; App.jsx:181-186",
+          "crossApp": false
+        },
+        {
+          "key": "mist_ocr_markdown_index",
+          "schema": "Record<pdfName, string | { content: string } | { cid: string, updatedAt: number, summary?: string, summaryUpdatedAt?: number }>(ファイル名→本文。3形式が dual-read 対象で混在する。詳細は下記特記事項)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer",
+            "tc-note"
+          ],
+          "source": "tc-pdf-viewer/src/services/storage.js:26-32,220-234,236-257",
+          "crossApp": true
+        },
+        {
+          "key": "mist_translated_markdown_index",
+          "schema": "Record<pdfName, Record<lang, string | { content: string } | { cid: string, updatedAt: number }>>(ファイル名→言語→本文。mist_ocr_markdown_index と同じ3形式が dual-read 対象で混在する)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer",
+            "tc-note"
+          ],
+          "source": "tc-pdf-viewer/src/services/storage.js:71-79,282-299,301-322",
+          "crossApp": true
+        },
+        {
+          "key": "mist_explanations_index",
+          "schema": "Record<string, string>(キーは選択テキストの生文字列(ハッシュ化なし)、値はAI解説本文の mistlib CID)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/storage.js:187-218",
+          "crossApp": false
+        },
+        {
+          "key": "mist_last_lang",
+          "schema": "string(最後に使用した翻訳言語)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/utils/mist.js",
+          "crossApp": false
+        },
+        {
+          "key": "mist_last_pdf",
+          "schema": "string(最後に開いた PDF の識別子)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/utils/mist.js",
+          "crossApp": false
+        },
+        {
+          "key": "tc-pdf-viewer-ai-settings-v1",
+          "schema": "{ backend: 'http' | 'mistllm'; networkProviderEnabled: boolean; taskPresetIds: { explain, translate, chat, ocr }; promptTemplate: string; targetLanguages: string[] }(下記)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/ai.js:32-46",
+          "crossApp": false
+        },
+        {
+          "key": "ai_settings(レガシー、廃止)",
+          "schema": "baseUrl/apiKey/タスク別モデル名を1レコードで保持する旧形式(下記特記事項参照)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/ai.js:33,150-163",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-llm-config-v1",
+          "schema": "SharedLlmConfigV1(接続/モデル/AI Networkルーム。tts/stt不使用。詳細は ../llm-config.md)",
+          "writers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "source": "tc-pdf-viewer/src/services/llmConfig.js。詳細は ../llm-config.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-folder-export-v1",
+          "schema": "SharedRecord(meta は FolderExportMeta。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-pdf-viewer",
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-pdf-viewer/src/services/driveExport.js。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の folder-export トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-shared-ocr-markdown-index-v1",
+          "schema": "SharedRecord(meta.index に mist_ocr_markdown_index のスナップショットを含む。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/storage.js:46-68(saveOcrMarkdownIndex)。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の ocr-markdown-index トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-pdf-viewer-chat-index-v1",
+          "schema": "Record<pdfName, { cid: string, updatedAt: number }>(PDFごとのAIチャット履歴のCIDポインタ。本文はmistlib CIDストア)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/storage.js:398-432(saveChatMessages),434-474(loadChatMessages)",
+          "crossApp": false
+        },
+        {
+          "key": "mist_chat_<pdfName>(レガシー、動的キー)",
+          "schema": "メッセージ配列インライン",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/storage.js:399,450-473",
+          "crossApp": false
+        },
+        {
+          "key": "tc-pdf-viewer-drive-export-v1",
+          "schema": "DriveExportState(folderId/passphrase/folder/subfolders/files/sources/lastPublishedCid。下記参照)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/driveExport.js:19,36-45",
+          "crossApp": false
+        },
+        {
+          "key": "tc-pdf-viewer-inbox-imported-v1",
+          "schema": "{ v: 1, ids: string[] }(上限1000件)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/storageHandoffInbox.js:39-40,85-105。pdf-viewer-inbox トピック取り込みの冪等キー",
+          "crossApp": false
+        },
+        {
+          "key": "tc-pdf-viewer-mistllm-node-id-v1",
+          "schema": "string(UUID。表示用 mistllm nodeId)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/utils/mist.js:17,37-43",
+          "crossApp": false
+        },
+        {
+          "key": "tc-pdf-viewer-device-id",
+          "schema": "string(UUID。mistlib ノードの wire identity)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/utils/device.js:1-10",
+          "crossApp": false
+        },
+        {
+          "key": "tc-pdf-onboarding-done",
+          "schema": "'1'(オンボーディング完了フラグ。キー名がアプリ名短縮 tc-pdf の独自形式である点に注意)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/onboarding.js:1-17",
+          "crossApp": false
+        },
+        {
+          "key": "tc-pdf-theme",
+          "schema": "'dark' | 'light'(テーマ。同じく tc-pdf 短縮命名)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/hooks/useTheme.js:3",
+          "crossApp": false
+        },
+        {
+          "key": "tc-app-manifest:tc-pdf-viewer",
+          "schema": "AppManifestV1(アプリマニフェスト。詳細は ../app-manifest.md)",
+          "writers": [
+            "tc-pdf-viewer"
+          ],
+          "readers": [],
+          "source": "tc-pdf-viewer/src/services/appManifest.js; main.jsx:18-24",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-pdf-viewer-inbox-v1",
+          "schema": "SharedRecord(meta.items は FileHandoffItem[]: { id, name, mimeType, size, checksum, cid, key, iv, addedAt }[]。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-pdf-viewer/src/services/storageHandoffInbox.js:37,51-79; App.jsx:852-881。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の pdf-viewer-inbox トピック",
+          "crossApp": true
+        }
+      ]
+    },
+    {
+      "app": "tc-storage",
+      "path": "docs/data-contracts/docs/keys/tc-storage.md",
+      "title": "tc-storage の localStorage キー",
+      "summary": "mistlib 使用: あり(tc-storage/src/storage/mistStorage.ts ほか、storage_add/storage_get でファイル本文をCID保存)",
+      "keys": [
+        {
+          "key": "tc-storage-settings-v1",
+          "schema": "AppSettings(下記)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/storage/localSettings.ts:13",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-room-id-v1",
+          "schema": "string",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/storage/localSettings.ts:14",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-node-id-v1",
+          "schema": "string",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/storage/localSettings.ts:39,68-73",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-did-identity-v1",
+          "schema": "DID identity レコード(下記)、ローカル優先のミラーキー",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/crypto/didIdentity.ts:17",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-did-identity-cid-v1",
+          "schema": "string(共有 identity レコードの mistlib CID)",
+          "writers": [
+            "tc-storage",
+            "tc-chat",
+            "tc-vrm-viewer",
+            "tc-news",
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-storage",
+            "tc-chat",
+            "tc-vrm-viewer",
+            "tc-news",
+            "tc-vrsns2"
+          ],
+          "source": "tc-storage/src/crypto/sharedDidIdentity.ts:32。詳細は ../did-identity.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-snapshot-v1",
+          "schema": "StorageSnapshot",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage",
+            "tc-chat",
+            "tc-vrsns2"
+          ],
+          "source": "tc-storage/src/storage/localSnapshot.ts:4; tc-chat/src/interop/tcStorageFiles.ts:42,68-101; tc-vrsns2/src/interop/tcStorageFiles.ts:46",
+          "crossApp": true
+        },
+        {
+          "key": "tc-storage-folder-access-modes-v1",
+          "schema": "フォルダアクセスモード Record<string, mode>",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/folder/folderAccess.ts:3",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-folder-keys-v1",
+          "schema": "フォルダ暗号鍵 Record<string, string>",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/crypto/folderKeys.ts:5",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-file-share-keys-v1",
+          "schema": "ファイル共有鍵 Record<string, string>",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/crypto/fileShareKeys.ts:4",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-folder-sync-peers-v1",
+          "schema": "FolderSyncPeers",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/folder/folderPeers.ts:3",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-pending-shares-v1",
+          "schema": "保留中の共有一覧(配列、最大件数あり)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/share/pendingShares.ts:5",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-import-keys-v1",
+          "schema": "インポート鍵 Record<string, string>",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/share/pendingShares.ts:6",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-browser-sort-mode-v1",
+          "schema": "string(ソートモード)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/app/appUtils.ts:8",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-browser-view-mode-v1",
+          "schema": "'grid' | 'list'",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/app/appUtils.ts:9,184",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-translate-imported-v1",
+          "schema": "string[](取込済みの翻訳項目ID、上限あり)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/app/appTranslationsInbox.ts。共有バス translations-inbox(tc-translate 発行)から取り込んだ項目の冪等化用。詳細は ../SHARED_BUS.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-drive-inbox-imported-v1",
+          "schema": "string[](取込済みのdrive-inboxアイテムID、上限1000件)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/app/appDriveInbox.ts。共有バス storage-drive-inbox(tc-note 発行)から取り込んだ項目の冪等化用。詳細は ../SHARED_BUS.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-note-doc-index-v1",
+          "schema": "SharedRecord(meta は { notes: NoteDocIndexEntry[] }。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-note"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/app/appNoteDocInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の note-doc-index トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-storage-note-doc-imported-v1",
+          "schema": "{ v: 1, entries: Record<noteId, { cid: string; fileId: string }> }(上限1000件)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/app/appNoteDocInbox.ts。共有バス note-doc-index(tc-note 発行)から取り込んだノートのCID/ファイルID対応。詳細は ../SHARED_BUS.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-town-backup-v1",
+          "schema": "SharedRecord(meta は TownBackupMeta。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/app/appTownBackupInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の town-backup トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-storage-town-backup-imported-v1",
+          "schema": "{ v: 1, entries: Record<id, { checksum: string; fileId: string }> }",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/app/appTownBackupInbox.ts。共有バス town-backup(tc-town 発行)から取り込んだバックアップの冪等化用(id tc-town-backup 固定、checksum/ファイルID対応で「生きているコピーは常に1つ」を維持)。詳細は ../SHARED_BUS.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-books-backup-v1",
+          "schema": "SharedRecord(meta は BooksBackupMeta。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-books"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/app/appBooksBackupInbox.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の books-backup トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-storage-books-backup-imported-v1",
+          "schema": "{ v: 1, entries: Record<id, { checksum: string; fileId: string }> }",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-storage/src/app/appBooksBackupInbox.ts。共有バス books-backup(tc-books 発行)から取り込んだバックアップの冪等化用(id tc-books-backup 固定、checksum/ファイルID対応で「生きているコピーは常に1つ」を維持)。詳細は ../SHARED_BUS.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-pdf-viewer-inbox-v1",
+          "schema": "SharedRecord(meta.items は FileHandoffItem[]。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-pdf-viewer"
+          ],
+          "source": "tc-storage/src/storage/fileHandoff.ts:16-21,94-129(publishFileHandoff); tc-storage/src/app/appFileHandoffActions.ts:24-37(sendFileToApp)。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の pdf-viewer-inbox トピック",
+          "crossApp": true
+        }
+      ]
+    },
+    {
+      "app": "tc-town",
+      "path": "docs/data-contracts/docs/keys/tc-town.md",
+      "title": "tc-town の localStorage キー",
+      "summary": "mistlib 使用: あり(tc-town/src/lib/mistClient.ts。カタログのP2P配信/CID保存に使う)",
+      "keys": [
+        {
+          "key": "tc-shared-character-index-v1",
+          "schema": "SharedRecord(meta は CharacterIndexMeta。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-town/src/lib/characterIndexPublisher.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の character-index トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-shared-town-backup-v1",
+          "schema": "SharedRecord(meta は TownBackupMeta。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-town/src/lib/townBackupPublisher.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の town-backup トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-town:app-settings",
+          "schema": "アプリ設定",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/appSettings.ts:5",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:provider-settings",
+          "schema": "{ networkConsumerEnabled: boolean; networkProviderEnabled: boolean; sttSilenceDuration: number; expressionMode: \"auto\"|\"on\"|\"off\" }(ProviderSettings)",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/llmSettings.ts:23-35。expressionMode はVRM表情自動切り替え(下記「特記事項」参照)のモード選択で、契約対象外のアプリローカル項目",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:expression-latency-v1",
+          "schema": "{ samples: number[]; autoOff: boolean; updatedAt: string }(LatencyState。samples は表情分類LLMリクエストのレイテンシms、最大8件)",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/emotionClassifier.ts:27-38。expressionMode: \"auto\" 時、直近サンプルの平均レイテンシが2000msを超えると autoOff: true になり自動的にリクエストを停止する。契約対象外のアプリローカルキー",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:backup-publish-state-v1",
+          "schema": "{ v: 1; signature: string }(バックアップバンドルの内容シグネチャ。exportedAt を除いたSHA-256)",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/townBackupPublisher.ts。town-backup トピックの発行側変更検知用(無限churn防止)。契約対象外のアプリローカルキー",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-llm-config-v1",
+          "schema": "SharedLlmConfigV1(接続/モデル/TTS・STT/AI Networkルーム。詳細は ../llm-config.md)",
+          "writers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "source": "tc-town/src/lib/llmConfig.ts。詳細は ../llm-config.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:characters",
+          "schema": "キャラクター一覧",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/characterStorage.ts:18",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:worlds",
+          "schema": "ワールド一覧",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/worlds.ts:9",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:conversations",
+          "schema": "会話セッション",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/conversation.ts:74",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:evaluations",
+          "schema": "評価履歴",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/evaluation.ts:100",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:character-evaluations",
+          "schema": "キャラクター単位の評価",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/characterEvaluation.ts:90",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:catalog-published-v1",
+          "schema": "自分が公開したカタログエントリ",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/catalogStore.ts:18",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:catalog-directory-v1",
+          "schema": "ネットワークから学習した公開カタログ一覧",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/catalogStore.ts:19",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:catalog-wirelog-v1",
+          "schema": "署名済みカタログワイヤのログ(履歴同期用)",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/catalogStore.ts:20",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:catalog-profile-v1",
+          "schema": "公開エントリの著者表示名",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/catalogStore.ts:21",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:vrm-cid-cache-v1",
+          "schema": "VRMチェックサム→mistlib CID キャッシュ",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/characterIndexPublisher.ts:23",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:onboarding-done",
+          "schema": "オンボーディング完了フラグ",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/onboarding.ts:7",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:publish-prompt-dismissed-v1",
+          "schema": "公開プロンプト却下フラグ",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/views/CharactersView.tsx:99",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town:settings-tab",
+          "schema": "設定画面の選択タブ",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/views/SettingsView.tsx:269",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town-did-identity-v1",
+          "schema": "DID identity レコード(ローカルミラー)",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/crypto/didIdentity.ts:40",
+          "crossApp": false
+        },
+        {
+          "key": "tc-town-mistai-node-id-v1",
+          "schema": "mistlib ノードID",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-town"
+          ],
+          "source": "tc-town/src/lib/mistClient.ts:66",
+          "crossApp": false
+        }
+      ]
+    },
+    {
+      "app": "tc-translate",
+      "path": "docs/data-contracts/docs/keys/tc-translate.md",
+      "title": "tc-translate の localStorage キー",
+      "summary": "mistlib 使用: あり(src/lib/mistStorage.ts 経由。AI Network(lib/mistllm/)用の MistNode とは独立に、wasm の storage_add/storage_get(OPFSバックエンドのCIDストア) だけを薄くラップしたモジュールで、履歴本文の永続化に使う)",
+      "keys": [
+        {
+          "key": "tc-translate-provider-settings-v1",
+          "schema": "{ connection: \"api\" | \"network\"; networkProviderEnabled: boolean; visionPresetId: string }(LocalProviderSettings)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-translate"
+          ],
+          "source": "tc-translate/src/constants.ts:3; src/lib/storage.ts:25-39",
+          "crossApp": false
+        },
+        {
+          "key": "tc-translate-voice-settings-v1",
+          "schema": "Partial<LegacyVoiceSettings>(レガシー)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-translate"
+          ],
+          "source": "tc-translate/src/constants.ts:5; src/lib/storage.ts:47",
+          "crossApp": false
+        },
+        {
+          "key": "tc-translate-tts-settings-v1",
+          "schema": "{ engine: \"api\" | \"network\" | \"browser\" }(LocalTtsSettings)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-translate"
+          ],
+          "source": "tc-translate/src/constants.ts:6; src/lib/storage.ts:45-58",
+          "crossApp": false
+        },
+        {
+          "key": "tc-translate-stt-settings-v1",
+          "schema": "{ engine: \"api\" | \"network\"; micDeviceId: string }(LocalSttSettings)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-translate"
+          ],
+          "source": "tc-translate/src/constants.ts:7; src/lib/storage.ts:60-74",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-llm-config-v1",
+          "schema": "SharedLlmConfigV1(接続/モデル/TTS・STT/AI Networkルーム。詳細は ../llm-config.md)",
+          "writers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "source": "tc-translate/src/lib/llmConfig.ts。詳細は ../llm-config.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-translate-history-v1",
+          "schema": "PersistedHistoryItem[](最大件数あり。各エントリは索引情報 + bodyCid。上記「mistlib storage の使い方」参照)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-translate",
+            "tc-note"
+          ],
+          "source": "tc-translate/src/constants.ts:8; src/lib/storage.ts:382,448; src/types.ts:198",
+          "crossApp": true
+        },
+        {
+          "key": "tc-translate-target-language-v1",
+          "schema": "string(言語コード)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-translate"
+          ],
+          "source": "tc-translate/src/constants.ts:9; src/lib/storage.ts:109-114",
+          "crossApp": false
+        },
+        {
+          "key": "tc-translate-native-language-v1",
+          "schema": "string(言語コード)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-translate"
+          ],
+          "source": "tc-translate/src/constants.ts:10; src/lib/storage.ts:118-123",
+          "crossApp": false
+        },
+        {
+          "key": "tc-translate-mode-v1",
+          "schema": "string(動作モード)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-translate"
+          ],
+          "source": "tc-translate/src/constants.ts:11; src/lib/storage.ts:127-132",
+          "crossApp": false
+        },
+        {
+          "key": "tc-translate-mistllm-node-id-v1",
+          "schema": "string(UUID)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-translate"
+          ],
+          "source": "tc-translate/src/lib/mistllm/node.ts:16-34。mistllm(P2P LLMネットワーク)ノードIDで、初回生成後 localStorage に永続化される。tc-translate 全体で使う機器識別子とは別物(mistllm 専用)",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-translations-inbox-v1",
+          "schema": "SharedRecord(meta は { v, count, items: TranslationInboxItem[] })",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-translate/src/lib/shareToStorage.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の translations-inbox トピック",
+          "crossApp": true
+        },
+        {
+          "key": "tc-shared-lingo-card-inbox-v1",
+          "schema": "SharedRecord(meta は LingoCardInboxMeta)",
+          "writers": [
+            "tc-translate"
+          ],
+          "readers": [
+            "tc-lingo"
+          ],
+          "source": "tc-translate/src/lib/shareToLingo.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。詳細は ../SHARED_BUS.md の lingo-card-inbox トピック",
+          "crossApp": true
+        }
+      ]
+    },
+    {
+      "app": "tc-travel",
+      "path": "docs/data-contracts/docs/keys/tc-travel.md",
+      "title": "tc-travel の localStorage キー",
+      "summary": "mistlib 使用: あり(tc-travel/src/lib/mistNode.ts。P2Pルーム参加とドライブ/キャラクター バンドルのCID保存に使う)",
+      "keys": [
+        {
+          "key": "tc-shared-folder-export-v1",
+          "schema": "SharedRecord(meta は FolderExportMeta。詳細は ../SHARED_BUS.md)",
+          "writers": [
+            "tc-pdf-viewer",
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-storage"
+          ],
+          "source": "tc-travel/src/lib/drive/export.ts。共有バスの真の共有キー(アプリ名プレフィックスなし)。両書き手の違い・単一レコード上書きの扱いは ../SHARED_BUS.md の「既存トピック: folder-export」を参照",
+          "crossApp": true
+        },
+        {
+          "key": "tc-shared-drive-index-v1",
+          "schema": "SharedRecord(meta は DriveIndexMeta)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/drive/reader.ts。詳細は ../SHARED_BUS.md の「既存トピック: drive-index」",
+          "crossApp": true
+        },
+        {
+          "key": "tc-shared-character-index-v1",
+          "schema": "SharedRecord(meta は CharacterIndexMeta)",
+          "writers": [
+            "tc-town"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/town/characterIndex.ts。詳細は ../SHARED_BUS.md の「既存トピック: character-index」",
+          "crossApp": true
+        },
+        {
+          "key": "tc-travel:driveExport",
+          "schema": "FolderExportState(エクスポート状態。旧キー tc-travel:tcStorageExport からの移行あり)",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/drive/export.ts:15,17",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:cards",
+          "schema": "ワールドブラグカード",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/cards.ts:10",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:celebLedger",
+          "schema": "お祝いイベントの既読管理",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/celebrate.ts:98",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:profile",
+          "schema": "個人プロフィール",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/personal.ts:10",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:joinedRooms",
+          "schema": "参加済みルーム一覧",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/personal.ts:11",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:streak",
+          "schema": "連続参加ストリーク",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/personal.ts:12",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:journey",
+          "schema": "旅の記録",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/personal.ts:13",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:aiCompanion",
+          "schema": "{ roomId: string; model?: string; voice?: string; persona?: string; ttsEnabled: boolean }(AiCompanionSettings)",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/ai/aiSettings.ts:18-25",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-llm-config-v1",
+          "schema": "SharedLlmConfigV1(接続/モデル/TTS・STT/AI Networkルーム。tc-travelはnetwork.roomIdのみ利用。詳細は ../llm-config.md)",
+          "writers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "readers": [
+            "tc-note",
+            "tc-translate",
+            "tc-pdf-viewer",
+            "tc-news",
+            "tc-town",
+            "tc-travel",
+            "tc-mistllm"
+          ],
+          "source": "tc-travel/src/lib/drive/llmConfig.ts。詳細は ../llm-config.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:nodeId",
+          "schema": "mistlib ノードID",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/mistNode.ts:12",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:onboarding-done",
+          "schema": "オンボーディング完了フラグ",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/onboarding.ts:8",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:language",
+          "schema": "UI言語設定",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/i18n.ts:31",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:familyVrmAdoptChecked",
+          "schema": "ファミリーVRM自動採用チェック済みフラグ",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/familyVrm.ts:16",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:solo:pins, tc-travel:solo:photos, tc-travel:solo:diary",
+          "schema": "ソロプレイの思い出(ピン/写真/日記)",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/local/localMemories.ts:19-21",
+          "crossApp": false
+        },
+        {
+          "key": "tc-travel:admin2:resolved",
+          "schema": "市区町村レベルの位置解決キャッシュ",
+          "writers": [
+            "tc-travel"
+          ],
+          "readers": [
+            "tc-travel"
+          ],
+          "source": "tc-travel/src/lib/geo/municipalResolver.ts:327",
+          "crossApp": false
+        }
+      ]
+    },
+    {
+      "app": "tc-vrm-viewer",
+      "path": "docs/data-contracts/docs/keys/tc-vrm-viewer.md",
+      "title": "tc-vrm-viewer の localStorage キー",
+      "summary": "mistlib 使用: あり。tc-vrm-viewer は他アプリと異なり、identity 永続化を localStorage ではなく mistlib の OPFS ストレージ(CID)に委譲し、localStorage は CID ポインタのみを 持つという独自方式を取る(tc-vrm-viewer/src/profile/sharedStorage.ts, tc-vrm-viewer/src/profile/didIdentity.ts)。",
+      "keys": [
+        {
+          "key": "tc-shared-did-identity-cid-v1",
+          "schema": "string(mistlib storage 上の identity レコードの CID)",
+          "writers": [
+            "tc-vrm-viewer"
+          ],
+          "readers": [
+            "tc-vrm-viewer"
+          ],
+          "source": "tc-vrm-viewer/src/profile/didIdentity.ts:27前後(sharedIdentityCidKey)",
+          "crossApp": false
+        },
+        {
+          "key": "tc-vrm-viewer-did-identity-v1",
+          "schema": "DID identity レコードのローカルミラー(mistlib 未対応環境向けフォールバック)",
+          "writers": [
+            "tc-vrm-viewer"
+          ],
+          "readers": [
+            "tc-vrm-viewer"
+          ],
+          "source": "tc-vrm-viewer/src/profile/didIdentity.ts(localMirrorKey)",
+          "crossApp": false
+        }
+      ]
+    },
+    {
+      "app": "tc-vrsns2",
+      "path": "docs/data-contracts/docs/keys/tc-vrsns2.md",
+      "title": "tc-vrsns2 の localStorage キー",
+      "summary": "mistlib 使用: あり。tc-vrsns2 は tc-vrm-viewer と同様、identity/プロフィール永続化を localStorage ではなく mistlib の OPFS ストレージ(CID)に委譲し、localStorage は CID ポインタのみを持つという同じ方式を取る(tc-vrsns2/src/profile/sharedStorage.ts, tc-vrsns2/src/profile/didIdentity.ts, tc-vrsns2/src/profile/sharedP…",
+      "keys": [
+        {
+          "key": "tc-shared-did-identity-cid-v1",
+          "schema": "string(mistlib storage 上の identity レコードの CID)",
+          "writers": [
+            "tc-storage",
+            "tc-chat",
+            "tc-vrm-viewer",
+            "tc-news",
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-storage",
+            "tc-chat",
+            "tc-vrm-viewer",
+            "tc-news",
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/profile/didIdentity.ts:39(sharedIdentityCidKey)。詳細は ../did-identity.md",
+          "crossApp": false
+        },
+        {
+          "key": "tc-vrsns2-did-identity-v1",
+          "schema": "DID identity レコードのローカルミラー(mistlib 未対応環境向けフォールバック)",
+          "writers": [
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/profile/didIdentity.ts:40(localMirrorKey)",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-profile-cid-v1",
+          "schema": "string(mistlib storage 上の SharedProfileRecord の CID)",
+          "writers": [
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/profile/sharedProfile.ts:46(profileCidKey)",
+          "crossApp": false
+        },
+        {
+          "key": "tc-shared-profile-v1",
+          "schema": "SharedProfileRecord(表示名・アバター・DID。mistlib 未対応環境向けフォールバックの完全な JSON コピー)",
+          "writers": [
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/profile/sharedProfile.ts:47(profileFallbackKey)",
+          "crossApp": false
+        },
+        {
+          "key": "tc-vrsns2:profile-v1",
+          "schema": "LocalProfile(表示名・アクセントカラー・アバターCID)",
+          "writers": [
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/profile/localProfile.ts:19",
+          "crossApp": false
+        },
+        {
+          "key": "tc-vrsns2:room-v1",
+          "schema": "最後に参加したルームID",
+          "writers": [
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/profile/localProfile.ts:20",
+          "crossApp": false
+        },
+        {
+          "key": "tc-vrsns2:locale",
+          "schema": "UIロケール",
+          "writers": [
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/i18n/index.ts:69",
+          "crossApp": false
+        },
+        {
+          "key": "tc-vrsns2:catalog:avatars-v1",
+          "schema": "アバターカタログ(CatalogItem[]、CIDで参照)",
+          "writers": [
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/storage/catalog.ts:18",
+          "crossApp": false
+        },
+        {
+          "key": "tc-vrsns2:catalog:worlds-v1",
+          "schema": "ワールドカタログ(CatalogItem[]、CIDで参照)",
+          "writers": [
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/storage/catalog.ts:19",
+          "crossApp": false
+        },
+        {
+          "key": "tc-vrsns2:catalog:objects-v1",
+          "schema": "オブジェクトカタログ(CatalogItem[]、CIDで参照)",
+          "writers": [
+            "tc-vrsns2"
+          ],
+          "readers": [
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/storage/catalog.ts:20",
+          "crossApp": false
+        },
+        {
+          "key": "tc-storage-snapshot-v1",
+          "schema": "tc-storage の StorageSnapshot(フォルダ/ファイル一覧)",
+          "writers": [
+            "tc-storage"
+          ],
+          "readers": [
+            "tc-vrsns2"
+          ],
+          "source": "tc-vrsns2/src/interop/tcStorageFiles.ts:46。tc-storage に保存済みのVRMアバターをCIDで再アップロードなしに読み込むための一覧取得のみに使う",
+          "crossApp": true
+        }
+      ]
+    }
+  ],
+  "reference": [
+    {
+      "path": "docs/data-contracts/reference/appManifest.js",
+      "name": "appManifest",
+      "lang": "js"
+    },
+    {
+      "path": "docs/data-contracts/reference/appManifest.ts",
+      "name": "appManifest",
+      "lang": "ts"
+    },
+    {
+      "path": "docs/data-contracts/reference/llmConfig.js",
+      "name": "llmConfig",
+      "lang": "js"
+    },
+    {
+      "path": "docs/data-contracts/reference/llmConfig.ts",
+      "name": "llmConfig",
+      "lang": "ts"
+    },
+    {
+      "path": "docs/data-contracts/reference/mistSignaling.js",
+      "name": "mistSignaling",
+      "lang": "js"
+    },
+    {
+      "path": "docs/data-contracts/reference/mistSignaling.ts",
+      "name": "mistSignaling",
+      "lang": "ts"
+    },
+    {
+      "path": "docs/data-contracts/reference/sharedBus.js",
+      "name": "sharedBus",
+      "lang": "js"
+    },
+    {
+      "path": "docs/data-contracts/reference/sharedBus.ts",
+      "name": "sharedBus",
+      "lang": "ts"
+    }
+  ],
+  "types": [
+    {
+      "path": "docs/data-contracts/types/tc-chat.d.ts",
+      "app": "tc-chat"
+    },
+    {
+      "path": "docs/data-contracts/types/tc-mistllm.d.ts",
+      "app": "tc-mistllm"
+    },
+    {
+      "path": "docs/data-contracts/types/tc-note.d.ts",
+      "app": "tc-note"
+    },
+    {
+      "path": "docs/data-contracts/types/tc-pdf-viewer.d.ts",
+      "app": "tc-pdf-viewer"
+    },
+    {
+      "path": "docs/data-contracts/types/tc-storage.d.ts",
+      "app": "tc-storage"
+    },
+    {
+      "path": "docs/data-contracts/types/tc-translate.d.ts",
+      "app": "tc-translate"
+    },
+    {
+      "path": "docs/data-contracts/types/tc-vrm-viewer.d.ts",
+      "app": "tc-vrm-viewer"
+    }
+  ],
+  "protocols": [
+    {
+      "name": "add_item",
+      "packet_id": 1,
+      "packet_id_hex": "0x0001",
+      "reliable": true,
+      "ordered": true,
+      "total_bits": 48,
+      "total_bytes": 6
+    },
+    {
+      "name": "get_user",
+      "packet_id": 2,
+      "packet_id_hex": "0x0002",
+      "reliable": true,
+      "ordered": true,
+      "total_bits": 0,
+      "total_bytes": 0
+    },
+    {
+      "name": "set_username",
+      "packet_id": 3,
+      "packet_id_hex": "0x0003",
+      "reliable": true,
+      "ordered": true,
+      "total_bits": 0,
+      "total_bytes": 0
+    },
+    {
+      "name": "update_equip",
+      "packet_id": 4,
+      "packet_id_hex": "0x0004",
+      "reliable": true,
+      "ordered": true,
+      "total_bits": 65,
+      "total_bytes": 9
+    },
+    {
+      "name": "update_position",
+      "packet_id": 5,
+      "packet_id_hex": "0x0005",
+      "reliable": false,
+      "ordered": false,
+      "total_bits": 160,
+      "total_bytes": 20
+    }
+  ]
+}
