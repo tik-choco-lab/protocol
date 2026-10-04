@@ -154,6 +154,7 @@ consumer は `"tools"` を広告しない provider に、リクエストの `too
 | `model` | `string` | 任意 | 生モデル id。省略/空文字は下記の既定解決 |
 | `tools` | JSON 配列 | 任意 | OpenAI `tools` 形状の tool 定義。そのまま上流へ渡す(`"tools"` capability が必要) |
 | `tool_choice` | JSON 文字列またはオブジェクト | 任意 | OpenAI `tool_choice` をそのまま上流へ渡す(`"tools"` capability が必要) |
+| `reasoning_effort` | `string` | 任意 | 依頼側タスクの推論の強さ(`none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max`)。provider は指定があれば上流の `reasoning_effort` としてそのまま渡し(自身の既定より優先)、なければ自身の既定を使う。未知の値も素通しする。理解しない旧 provider は無視してよい(後方互換) |
 
 `ChatMessage` の基本形は `{ role: "system" | "user" | "assistant", content: string }`。
 tools 拡張では次のフィールドを使用できる(optional フィールドは無い場合に省略する):
@@ -497,8 +498,13 @@ provider/preset や他のルームへフォールバックしない。defaultMod
 要求名をそのまま上流へ転送する実装もある。旧 label 広告への要求は旧 provider 側が変換
 する(上記互換注記)。空 model を扱う新規則により、旧 consumer の「おまかせ」も利用できる。
 
-HTTP 上流への生成リクエストに temperature を付けない。reasoning effort は提供アプリの
-タスクローカル設定を使えるが、この改訂で llm_request に reasoning_effort は追加しない。
+HTTP 上流への生成リクエストに temperature を付けない。
+
+**reasoning effort**(2026-10-04 追加): consumer は依頼タスクの推論の強さを `llm_request.reasoning_effort`
+で送る。provider はあればそれを上流へ渡し、なければ自身の既定を使う。ストリーミングはそのまま。
+ルーム経由の**チャットは常に `llm_request`** を使い、effort を運ぶために oai トンネルへ迂回しない。
+oai トンネルは `llm_request` で運べないもの(画像 content part を含む vision/OCR、`/models`、`/embeddings`)専用とする
+(`ChatMessage.content` はワイヤ上で文字列のため)。
 
 本節は `llm_request.model` に対する規則である。`tts_request`/`stt_request.model` の扱いは
 上記「provider の `voice`/`model` 尊重規則」を参照 — TTS/STT の `model` は provider ごとの
