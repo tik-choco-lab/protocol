@@ -25,7 +25,7 @@ tc-translate は mistlib ノードを注入した `@tik-choco/mistai` の `Consu
 mistai は本セクション基本メッセージ種別に加え、下記「音声拡張」も実装する。さらに mistai
 v0.4.0 で `provider_hello.services` と `llm_error.code`/`voice_error.code`(下記
 「capability 広告」「capability 不一致時の応答義務」参照)を実装する。tc-mistllm コア実装
-(`protocol.ts`/`protocol.rs`)および mistl は本稿執筆時点でこれらを未実装だが、`services`
+(`protocol.ts`/`protocol.rs`)および更新前の mistl はこれらを未実装だが、`services`
 欠落時は `["chat"]` を広告したものとみなす既定の後方互換ルールにより、更新前のピアとも
 相互運用できる。
 
@@ -35,7 +35,8 @@ v0.4.0 で `provider_hello.services` と `llm_error.code`/`voice_error.code`(下
   mistlib の `sendMessage`/`send_message` に渡す。
 - `v` が `1` でない、または `type` が未知の値であれば、メッセージ全体を破棄する
   (`decode`/`decode_message` は `null`/`None` を返す)。
-- ロール(`ChatMessage.role`)は `"system" | "user" | "assistant"` の3値のみ許可。
+- ロール(`ChatMessage.role`)は `"system" | "user" | "assistant"` の3値を基本とし、
+  `"tools"` capability を広告する provider に対してのみ `"tool"` も許可する。
 
 ## メッセージ種別
 
@@ -55,8 +56,8 @@ v0.4.0 で `provider_hello.services` と `llm_error.code`/`voice_error.code`(下
 |---|---|---|---|
 | `v` | `1` | 必須 | プロトコルバージョン |
 | `type` | `"consumer_hello"` \| `"provider_hello"` | 必須 | メッセージ種別 |
-| `models` | `string[]`(`provider_hello` のみ) | 任意 | provider が自身の上流(HTTP API)に `GET /models` した結果を配布する optional 拡張。consumer 側はこれを受けて UI のモデル選択プルダウンに反映する。tc-pdf-viewer 発の拡張(commit `be743f8`)で、`v: 1` のまま追加された optional フィールドの実例。広告してよい内容の義務・省略時の扱いは下記「`models`(広告名 = ラベル規約)」参照 |
-| `services` | `string[]`(`provider_hello` のみ) | 任意 | provider が提供するサービス種別の広告(capability 広告)。既知値は `"chat"` \| `"tts"` \| `"stt"` \| `"embedding"`。mistai v0.4.0 で実装。フィールド省略時の意味論は下記参照 |
+| `models` | `string[]`(`provider_hello` のみ) | 任意 | そのルームで明示的に共有するモデルの生 id。上流の `GET /models` の結果全体を自動公開しない。consumer はモデル選択に反映する。広告・省略時の扱いは下記「`models`(広告名 = 生モデル id)」参照 |
+| `services` | `string[]`(`provider_hello` のみ) | 任意 | provider が提供するサービス種別の広告(capability 広告)。既知値は `"chat"` \| `"tts"` \| `"stt"` \| `"embedding"` \| `"tools"`。services 広告は mistai v0.4.0 で実装。フィールド省略時の意味論は下記参照 |
 | `voices` | `string[]`(`provider_hello` のみ) | 任意 | provider が TTS で受け付ける voice 名のカタログ広告(capability 広告)。`services` に `"tts"` を広告する provider のみが広告してよい。mistai v0.6.0 で実装。詳細は下記「`voices`(capability 広告)」参照 |
 
 `consumer_hello` に `models`/`services`/`voices` は存在しない。`provider_hello` の `models`・
@@ -71,35 +72,44 @@ v0.4.0 で `provider_hello.services` と `llm_error.code`/`voice_error.code`(下
   要素単位フィルタであり、本改訂で実装に合わせた)。`voices` も mistai v0.6.0 から
   同じ規則で実装されている。
 
-#### `models`(広告名 = ラベル規約)
+#### `models`(広告名 = 生モデル id)
 
-`models[]` に載る文字列は、必ずしもモデル id そのものではなく、**表示名を兼ねた不透明な
-ルーティングキー**(プリセットのラベル。未設定ならモデル id)である場合がある。consumer は
-受け取った文字列をそのまま表示し・そのまま `llm_request.model` に載せてよい(値の意味を
-解釈しようとしないこと)。広告名がどの上流モデルに対応するかは**広告した provider だけが
-知っており**、provider は受信した `model` を実モデル id に書き換えてから上流へ転送してよい
-(tc-translate の `mist-network://` 疑似プロバイダ実装がこの規約の参照実装)。ワイヤ形状は
-従来どおり `string[]` のままであり、素のモデル id をそのまま広告する旧来の実装とも
-混在できる(この規約はワイヤ変更を伴わない、広告される文字列の意味論についての取り決め)。
+2026-10-04 の provider/room 統合以降、広告名は**生のモデル id**とする。
+provider/preset の label を広告名にする旧規約は退役する。共有対象は
+`ModelRefV1 {providerId, model}`(ネイティブでは `{provider_id, model}`)の順序付きリスト。
+provider はそのルームで明示的に共有した、有効な HTTP provider の ref の `model` のみを
+`models[]` に載せる。同じ id が複数 ref にあれば広告は重複を除き、受信時はリスト順で
+最初の ref の HTTP provider が担当する。model 文字列は上流へそのまま渡し、label 変換はしない。
 
-さらに、`models[]` を広告する場合、provider は**共有対象として明示的に選択した preset の
-広告名のみ**で `models` を構成しなければならない。上流エンドポイント(`GET /models` 等)
-から取得したモデル一覧を、選択を経ずにそのまま広告する実装は本規約違反である(共有して
-いないモデルの存在をネットワークに露出させてしまうため)。共有対象の preset が一つも
-選択されていない場合は、`models` フィールド自体を省略すること。上記「フィールドの
-防御的パース」で述べたとおり、フィールド省略時は consumer 側で「`models` 広告なし
-(= モデル一覧不明のレガシー単一上流モード)」として扱われる。
+上流エンドポイント(`GET /models` 等)から取得したカタログを、共有選択を経ずにそのまま
+広告してはならない。共有 ref が一つもなければ `models` フィールドを省略する。
+省略は従来どおり「一覧不明」であり、consumer はこれを閉じた空のカタログと解釈しない。
+Room で発見したモデルを別の Room へ再共有してはならない(ループ防止)。
 
-共有 preset の選択内容が変わった(追加・削除・入れ替え)場合、provider は接続を維持した
-まま `provider_hello` を全ピアへ再送する**べきである**(SHOULD)。consumer は接続中に
-受信した `provider_hello` で provider table と UI 表示を即時更新する(tc-translate/mistai
-v0.5.0 の実装で運用済みの挙動)。この再送規則は下記「`voices`(capability 広告)」の
-再送記述(TTS 設定変更時の再送は MAY)と対をなすが、`models` は共有可否そのものに関わる
-規約準拠の問題であるため、voices より一段強い SHOULD とする。
+**提供はルームごと**に ON/OFF と shared refs を持つ。web ではアプリローカル、mistl では
+Room provider の provide/shared に保存する([llm-config.md](llm-config.md) 参照)。
+提供 ON かつ有効な Room のみに参加・広告し、そのルームの共有リストだけで受信を解決する。
+別のルームの共有リストで要求を満たしてはならない。停止/無効化ではそのルームへの提供を
+止めるが、保存済みリストは保持する。単一の legacy network.roomId/global 提供フラグを
+現行の状態源にはしない。`services` の形状・既定・capability 規則は変更しない。
+
+共有 ref の追加・削除・入れ替え、または HTTP provider の有効状態変更で提供内容が変わる
+場合、provider はそのルームの接続を維持したまま `provider_hello` を同ルームの全ピアへ
+再送する**べきである(SHOULD)**。最後の共有を解除した再送では `models` を省略する。
+consumer は同じルーム/ピアの古い広告を置き換え、provider table・UI・Room provider の
+モデルキャッシュを更新する(古いモデルを累積し続けない)。順序だけの変更でも同名 id の
+担当が変わりうるため、受信解決も直ちに更新する。
+
+**旧ピアとの互換**: 更新前の provider は preset label(空ならモデル id)を不透明な
+ルーティングキーとして広告することがある。consumer は受け取った文字列をそのピアへ
+そのまま返してよく、旧 provider 側が label を実 id へ変換する。ワイヤは `v: 1` と
+`string[]` のままで、label/raw id を識別する新フィールドはない。旧ラベルと新しい生 id を
+同一モデルとして推測・統合しない。新 provider は旧ラベルを別名として自動受理せず、
+下記の共有 ref による解決規則に従う。
 
 #### `services`(capability 広告)
 
-- 値が `"chat"`/`"tts"`/`"stt"`/`"embedding"` のいずれでもない未知の文字列は、無視せず
+- 値が `"chat"`/`"tts"`/`"stt"`/`"embedding"`/`"tools"` のいずれでもない未知の文字列は、無視せず
   そのまま素通しする(将来のサービス種別追加に備えた前方互換。consumer 側は認識できない
   値を単に無視すればよい)。
 
@@ -108,22 +118,29 @@ v0.5.0 の実装で運用済みの挙動)。この再送規則は下記「`voice
 チャット専用として扱われる。音声(tts/stt)や embedding を提供する provider は `services`
 を明示しなければ consumer から発見されない。
 
+`"tools"` は `"chat"` と併せて広告する tool calling の capability であり、provider が
+下記の optional tool フィールドを受け付け、応答に `tool_calls` を返せることを表す。
+mistl provider は `"chat"` を広告するとき常に `"tools"` も広告する。
+consumer は `"tools"` を広告しない provider に、リクエストの `tools`/`tool_choice`、
+または `role: "tool"`/`tool_calls`/`tool_call_id` を含む message を
+**送信してはならない(MUST NOT)**。`services` 欠落時の `["chat"]` は tools 対応を
+意味しないため、旧ピアには新しい tool フィールドが届かない。
+
 #### `voices`(capability 広告)
 
 `services` に `"tts"` を広告する provider のみが `voices` を広告してよい。一覧は provider が
 自身の TTS 上流から取得する(取得できない場合はフィールド自体を省略する — 空配列とは
 区別する)。
 
-- 各要素は `tts_request.voice` にそのまま指定できる**実 id**をそのまま広告する。上記
-  「`models`(広告名 = ラベル規約)」とは異なり、voice は provider が受信値を上流へ
-  素通しするだけなので、広告名からの逆引き変換が不要(実 id を広告してよい理由)。
+- 各要素は `tts_request.voice` にそのまま指定できる**実 id**を広告する。
+  model と同様に label への変換は不要で、voice は受信値をそのまま上流へ渡す。
 - 広告は最大 **64 件**を推奨する(hello の JSON サイズを mist の安全上限(~16KB)内に
   収めるため)。上流が多数の voice を持つ場合は先頭 64 件に切り詰めてよく、切り詰めた
   事実自体はワイヤ上に表現しない。
 - provider の TTS 設定変更で一覧が変わった場合、provider は `provider_hello` を再送して
   よい(hello 再送の契機・実装はこの規約自体が定めるものではなく、consumer/provider
   実装側の合意事項)。`models` の共有リスト変更時は同じ再送がより強い規範(SHOULD)
-  として定められている — 上記「`models`(広告名 = ラベル規約)」参照。
+  として定められている — 上記「`models`(広告名 = 生モデル id)」参照。
 - mistai v0.6.0 で実装。
 
 ### `llm_request`
@@ -134,10 +151,23 @@ v0.5.0 の実装で運用済みの挙動)。この再送規則は下記「`voice
 | `type` | `"llm_request"` | 必須 | メッセージ種別 |
 | `id` | `string`(非空) | 必須 | リクエストID。以降の応答はこの `id` で相関付けられる |
 | `messages` | `ChatMessage[]`(非空配列) | 必須 | チャット履歴。空配列は不正 |
-| `model` | `string` | 任意 | 使用モデル名の指定 |
+| `model` | `string` | 任意 | 生モデル id。省略/空文字は下記の既定解決 |
+| `tools` | JSON 配列 | 任意 | OpenAI `tools` 形状の tool 定義。そのまま上流へ渡す(`"tools"` capability が必要) |
+| `tool_choice` | JSON 文字列またはオブジェクト | 任意 | OpenAI `tool_choice` をそのまま上流へ渡す(`"tools"` capability が必要) |
 
-`ChatMessage` は `{ role: "system" | "user" | "assistant", content: string }`。
+`ChatMessage` の基本形は `{ role: "system" | "user" | "assistant", content: string }`。
+tools 拡張では次のフィールドを使用できる(optional フィールドは無い場合に省略する):
+
+| フィールド | 型 | 必須 | 意味 |
+|---|---|---|---|
+| `role` | `"system"` \| `"user"` \| `"assistant"` \| `"tool"` | 必須 | `"tool"` は `"tools"` capability を広告する provider に対してのみ使用できる |
+| `content` | `string` | 必須 | メッセージ本文。tool 呼び出しのみの assistant ターンの OpenAI `content: null` はワイヤ上では `""` にエンコードする |
+| `tool_calls` | JSON 配列(assistant のみ) | 任意 | OpenAI 形状の tool 呼び出しをそのまま渡す(`"tools"` capability が必要) |
+| `tool_call_id` | `string`(tool のみ) | 任意 | tool の結果に対応する呼び出し id(`"tools"` capability が必要) |
+
 `messages` の各要素がこの形を満たさない場合、メッセージ全体を拒否する。
+`content` は引き続きワイヤ上では文字列であり、`null` は送らない。tool 呼び出しの形状・
+上限は下記「tools 拡張」参照。
 
 ### `llm_response_chunk`
 
@@ -161,11 +191,16 @@ Rust 側の `optional_seq` を参照)。
 | `type` | `"llm_response_done"` | 必須 | メッセージ種別 |
 | `id` | `string`(非空) | 必須 | 対応する `llm_request.id` |
 | `content` | `string` | 任意 | 応答の全文 |
+| `tool_calls` | JSON 配列 | 任意 | 応答の完全な、マージ済み tool 呼び出し(OpenAI 非ストリーミング形状)。無い場合は省略する |
 
 `content` は **authoritative**(正)。存在する場合、受信側は `llm_response_chunk` を
 積み上げて構築した文字列ではなく `content` を最終結果として採用しなければならない
 (chunk 側にバッファ待ちの断片が残っていてもこれで確定させてよい)。`content` が
 無い場合のみ、chunk の delta を順序どおり連結した文字列にフォールバックする。
+
+`tool_calls` は `llm_response_done` でまとめて返す。`llm_response_chunk` では tool 呼び出しを
+ストリーミングせず、従来どおりテキストの delta のみを運ぶ。tool 呼び出しのみの応答でも、
+`content` を送る場合は `""` とし、`null` は送らない。
 
 ### `llm_error`
 
@@ -175,7 +210,7 @@ Rust 側の `optional_seq` を参照)。
 | `type` | `"llm_error"` | 必須 | メッセージ種別 |
 | `id` | `string`(非空) | 必須 | 対応する `llm_request.id` |
 | `message` | `string` | 必須 | エラー内容 |
-| `code` | `string` | 任意 | 機械可読のエラー理由コード。既知値は `"unsupported_service"`(provider が要求されたサービス自体を提供していないことを表す。詳細は下記「capability 不一致時の応答義務」)。mistai v0.4.0 で実装 |
+| `code` | `string` | 任意 | 機械可読のエラー理由コード。既知値は `"unsupported_service"`(サービス非対応)と `"model_not_shared"`(そのルームで要求モデルを共有していない)。詳細は下記の応答規則。code 拡張は mistai v0.4.0 で実装 |
 
 `code` が文字列でない場合はこの**フィールドのみ**を無視し(`models`/`services` と同じ
 フィールド単位の防御的パース)、`message` があれば `llm_error` 自体は成立する。
@@ -199,6 +234,94 @@ Raftトラフィックはこの `ProtocolMessage` エンベロープに乗せて
 
 web版(`tc-mistllm/src/lib/protocol.ts`)は `raft_message` のエンコード/デコードのみ対応し、
 Raft本体のロジック(スケジューラー)は未実装。
+
+## tools 拡張 (Tools extension)
+
+OpenAI function/tool calling を同じ `v: 1` の既存メッセージ上で運ぶ optional 拡張。
+送信先は上記「`services`(capability 広告)」の規則に従い、`"chat"` と `"tools"` を
+広告する provider に限定する。新しいメッセージ種別やプロトコルバージョンは追加しない。
+
+message の `tool_calls` と `llm_response_done.tool_calls` は、次の OpenAI 形状を用いる:
+
+```json
+[{"id":"call-1","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Tokyo\"}"}}]
+```
+
+`id`・`type`・`function.name`・`function.arguments` を含めてそのまま渡す。
+`function.arguments` は JSON オブジェクトではなく、**JSON エンコードされた文字列**。
+done に載せる値は上流から受け取った断片をマージした完全な呼び出しである。
+
+受信側は次の上限を検証し、超過したリクエストは `llm_error` で拒否する:
+
+- `tools` は最大 **128 件**、シリアライズ後のサイズは **256 KiB 以下**。
+- 1 message あたりの `tool_calls` は最大 **128 件**。
+- 既存のメッセージ数・サイズの上限も引き続き適用する。
+
+mistl のローカル OpenAI 互換 API は、OpenAI tool calling をこの拡張へマッピングする。
+
+### JSON 交換例
+
+以下の配列は交換順を示す例であり、ワイヤでは各要素を個別の JSON メッセージとして送る。
+provider の広告 → 初回リクエスト → tool 呼び出しの完了通知 → tool 結果を含む後続リクエスト
+の順。assistant 履歴の `content: ""` は OpenAI の `content: null` に対応する。
+
+```json
+[
+  {
+    "v": 1,
+    "type": "provider_hello",
+    "services": ["chat", "tools"]
+  },
+  {
+    "v": 1,
+    "type": "llm_request",
+    "id": "req-1",
+    "messages": [{"role": "user", "content": "東京の天気を教えて。"}],
+    "tools": [{
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "指定した都市の天気を取得する",
+        "parameters": {
+          "type": "object",
+          "properties": {"city": {"type": "string"}},
+          "required": ["city"]
+        }
+      }
+    }],
+    "tool_choice": "auto"
+  },
+  {
+    "v": 1,
+    "type": "llm_response_done",
+    "id": "req-1",
+    "content": "",
+    "tool_calls": [{
+      "id": "call-1",
+      "type": "function",
+      "function": {"name": "get_weather", "arguments": "{\"city\":\"Tokyo\"}"}
+    }]
+  },
+  {
+    "v": 1,
+    "type": "llm_request",
+    "id": "req-2",
+    "messages": [
+      {"role": "user", "content": "東京の天気を教えて。"},
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [{
+          "id": "call-1",
+          "type": "function",
+          "function": {"name": "get_weather", "arguments": "{\"city\":\"Tokyo\"}"}
+        }]
+      },
+      {"role": "tool", "content": "{\"weather\":\"晴れ\"}", "tool_call_id": "call-1"}
+    ]
+  }
+]
+```
 
 ## 音声拡張 (Voice extension)
 
@@ -267,9 +390,10 @@ consumer(`mistai/src/voice-consumer.ts` の `VoiceConsumerService`)は `seq` が
 | `voice` | **指定された voice をそのまま上流へ渡す**(provider 自身の設定 voice で上書きしない。provider 側で事前検証も行わない — 上流が拒否した場合はそのエラーを `voice_error` で返す。広告一覧との照合は consumer UI 側の責務) | provider 自身の設定済み voice で応答する |
 | `model` | provider 自身の設定と一致するときだけ尊重する。不一致なら provider 自身の設定済みモデルで応答する(拒否はしない — `llm_request.model` に対する「広告済みモデルに対する応答規則」とは扱いが異なる。下記参照) | provider 自身の設定済みモデルで応答する |
 
-この非対称性は、`voice` が実 id をそのまま素通しできる(上記「`voices`(capability 広告)」
-参照)のに対し、`model` の広告カードは chat preset の名前(上記「`models`(広告名 = ラベル
-規約)」参照)であり、その名前を音声 API へそのまま流すと必ず失敗するために生じる。
+`models` は現在は生 id の広告だが、chat 用の共有モデルリストであり、TTS/STT の受理モデル
+一覧ではない。音声は引き続き provider 自身の設定済みモデルを使うこの規則に従う。
+consumer のルーム別「おまかせ」(`network-auto`)はローカル設定の sentinel であり、
+wire では `model` を省略する([llm-config.md](llm-config.md) 参照)。sentinel 自体は送らない。
 
 tc-translate・mistai(wire 層)はこの挙動で実装済み。mistl は voice 素通しは当初から
 実装済みだったが、model のフォールバックは未実装で、リクエストの `model`(広告ラベル
@@ -353,24 +477,36 @@ provider は、自身が `services` で広告していない(広告省略時は 
 
 ### 広告済みモデルに対する応答規則(`llm_request.model` の named-but-unshared 拒否)
 
-provider が `provider_hello.models` を広告している場合、`llm_request.model` の扱いは
-次の規範に従う:
+provider/room 統合後の provider は、受信した**そのルームの**設定済み shared refs を
+使って解決する。古い hello や別のルームのリストを許可判定に使わない。有効な HTTP
+provider へ `resolveModelExact` で解決できる ref だけを提供可能な候補とする。
 
-| `model` 指定 | provider が `models[]` を広告している場合 | provider が `models[]` を広告していない場合(レガシー単一上流モード) |
-|---|---|---|
-| 指定あり・`models[]` の広告値と一致 | 該当する上流モデルへ書き換えて応答する(上記「`models`(広告名 = ラベル規約)」により、広告名と実モデル id が異なる場合は provider が変換する) | 指定された名前をそのまま上流へ転送する(従来互換) |
-| 指定あり・`models[]` を広告中だが不一致 | **拒否する**。上流へは転送せず、理由を示すメッセージを付した `llm_error` を返す(例: 「The requested model is not shared by this provider.」)。共有解除したモデルを名前知識だけで使わせないための規則 | (該当なし。左列「広告していない場合」を参照) |
-| 指定なし | provider 既定の上流モデルで応答する | provider 既定の上流モデルで応答する(レガシー consumer /「おまかせ」) |
+| `llm_request.model` | 解決・応答 |
+|---|---|
+| 非空で、提供可能な shared ref の model と完全一致 | リスト順で最初の一致 ref の HTTP provider で応答する。model は生 id のまま上流へ渡す |
+| 非空で一致せず、設定済み shared リストが非空 | **拒否する(MUST)**。上流へ転送せず、同じ id の `llm_error` に `code: "model_not_shared"` と理由の message を付ける。共有 ref がすべて無効でもこの拒否を行う |
+| 省略または空文字 `""` | defaultModel が有効な HTTP provider へ解決できればそれを使い、そうでなければこのルームの最初の提供可能な shared ref を使う。defaultModel が Room なら中継しない |
+| 非空で shared リストが空 | `model_not_shared` の対象外。統合後の provider は上記の空 model と同じ既定解決を使う(要求名を未知の上流へ転送しない) |
 
-**「`model` 省略 = provider が自分の設定済みモデルで応える」が一般規則である**。
+既定解決でも候補がなければ `llm_error` で設定/利用不能のエラーを返す。任意の先頭
+provider/preset や他のルームへフォールバックしない。defaultModel は共有リストに載って
+いなくても空 model の要求に使えるが、非空の unshared 要求を既定へ逃がしてはならない。
+設定済み ref とその順序は実行時解決で書き換えない。
+
+互換注記: 統合前の単一上流 provider が models を省略している場合は、従来どおり非空の
+要求名をそのまま上流へ転送する実装もある。旧 label 広告への要求は旧 provider 側が変換
+する(上記互換注記)。空 model を扱う新規則により、旧 consumer の「おまかせ」も利用できる。
+
+HTTP 上流への生成リクエストに temperature を付けない。reasoning effort は提供アプリの
+タスクローカル設定を使えるが、この改訂で llm_request に reasoning_effort は追加しない。
 
 本節は `llm_request.model` に対する規則である。`tts_request`/`stt_request.model` の扱いは
 上記「provider の `voice`/`model` 尊重規則」を参照 — TTS/STT の `model` は provider ごとの
 単一設定であり、`models[]` のような共有リストに対する named-but-unshared 拒否は行わない
 (不一致時は常に provider 自身の設定へフォールバックし、拒否はしない)。
 
-この規則は tc-translate の共有設定実装(`llm-config.md` 参照)で既に運用されている挙動を
-一般化・明文化したものである。
+この規則は受信時の共有 ref 解決に適用する。services/capability の既存の検証は引き続き
+独立して適用する。
 
 ### 未知の型の扱い
 
@@ -401,7 +537,8 @@ provider が `provider_hello.models` を広告している場合、`llm_request.
    provider ごとに蓄積しておく。`services` が欠落している provider は `["chat"]` を
    広告したものとして扱う(上記「capability 広告」参照)。
 2. リクエストのサービス種別(chat/tts/stt/embedding)で、その `services` を広告する
-   provider に候補を絞り込む。
+   provider に候補を絞り込む。tool フィールドを使用する chat リクエストは、上記の
+   送信禁止規則に従い `"tools"` も広告する provider に限定する。
 3. 上記で絞り込んだ候補のうち、リクエストに `model` 指定があれば `provider_hello.models`
    にその `model` が含まれる provider を優先する。該当する provider が無ければ、
    `models` を広告していない(= モデル一覧不明で対応可否が判断できない)provider へ
@@ -421,7 +558,7 @@ provider が `provider_hello.models` を広告している場合、`llm_request.
 選択手順とは別に `lang` を付与する**べきである(SHOULD)**(provider 側の voice 自動選択に
 資する。上記「provider の `lang` 尊重規則」参照)。
 
-`ModelPresetV1.model`(llm-config の解決済み preset)を `llm_request.model` に載せる際の
+`ModelRefV1.model`(llm-config の解決済みモデル参照)を `llm_request.model` に載せる際の
 扱いは [llm-config.md](llm-config.md) の「mistllm-wire への橋渡し」を参照。
 
 ## ストリーミングと seq 並べ替え
@@ -473,6 +610,10 @@ consumer はリクエストID(`id`)ごとに以下の状態を保持する:
   デフォルト解決)」)を当てる実装にすること。
 - **メッセージ種別の追加**も `v: 1` のまま可能。未知の `type` を受信した側はメッセージ
   全体を破棄する(エラーにはしない)。
+- **tools 拡張も `v: 1` のまま**: `tools`/`tool_choice`/`tool_calls`/`tool_call_id` は
+  optional で、無い場合は省略し、従来のテキストチャットとして扱う。`role: "tool"` を
+  含む tool フィールドは `"tools"` を広告する provider にのみ送るため、更新前のピアにも
+  後方互換を保つ。`content` のワイヤ型は文字列のまま変えない。
 - 必須フィールドの削除・型変更・意味変更など、真に破壊的な変更を行う場合は
   `v` をインクリメントすること(tc-protocol 全体の
   [スキーマ進化ルール](conventions.md#スキーマ進化ルール)に準じる)。

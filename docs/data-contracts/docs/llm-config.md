@@ -5,12 +5,9 @@ LLM/TTS/STT の接続設定(エンドポイント・APIキー)を、同一オリ
 [did-identity.md](did-identity.md) が採用している「共有キー」方式(アプリ名プレフィックスなし、
 参加アプリ全員が読み書きする co-owned なキー)を LLM 接続設定にも適用したもの。
 
-## 目的
-
-これまで各アプリは自分専用のローカル設定キーに LLM のベース URL・APIキー・モデル名を
-個別に保持しており、同じ LLM プロバイダを複数アプリで使う場合でもアプリごとに再入力が
-必要だった。`tc-shared-llm-config-v1` に接続情報を集約することで、ユーザーはどこか1つの
-アプリで一度設定すれば、他の参加アプリからも同じプロバイダ・モデルを再利用できる。
+2026-10-04 の provider/room 統合では、モデル選択を preset から `{providerId, model}`
+へ移す。Room も通常の provider として扱う。キーと `v: 1` は変えず、追加フィールドは
+すべて optional とする。旧アプリとの共存のため、legacy フィールドは削除せず保持する。
 
 ## 共有キー
 
@@ -18,9 +15,8 @@ LLM/TTS/STT の接続設定(エンドポイント・APIキー)を、同一オリ
 |---|---|---|
 | `tc-shared-llm-config-v1` | localStorage(アプリ名プレフィックスなし) | `SharedLlmConfigV1`(下記) |
 
-[conventions.md](conventions.md) の「新規キーの命名規約」が定める `tc-shared-<name>` 形式に
-従う。did-identity と同じく**所有者は特定の1アプリではなく共有**であり、参加アプリは全員
-このキーを読み書きしてよい(同一オリジンの相互信頼を前提とする — 「信頼境界」節を参照)。
+[conventions.md](conventions.md) の `tc-shared-<name>` 形式に従う。所有者は共有であり、
+参加アプリは全員このキーを読み書きしてよい(同一オリジンの相互信頼を前提とする)。
 
 ## スキーマ
 
@@ -28,10 +24,16 @@ LLM/TTS/STT の接続設定(エンドポイント・APIキー)を、同一オリ
 type LlmProviderV1 = {
   id: string;
   label: string;
-  baseUrl: string;
-  apiKey: string;
+  baseUrl: string;           // HTTP URL または mist-network://<roomId>
+  apiKey: string;            // Room は ""
+  enabled?: boolean;        // 欠落 = true
+  models?: string[];        // 最後に取得したモデル id のキャッシュ
+  modelsFetchedAt?: string; // ISO 8601、取得成功時刻
 };
 
+type ModelRefV1 = { providerId: string; model: string };
+
+// Deprecated: migration input only; new writers preserve unchanged.
 type ModelPresetV1 = {
   id: string;
   label: string;
@@ -51,158 +53,172 @@ type VoiceConfigV1 = {
 type SharedLlmConfigV1 = {
   v: 1;
   providers: LlmProviderV1[];
-  presets: ModelPresetV1[];
-  defaultPresetId: string;      // "" = 未設定
+  defaultModel?: ModelRefV1;    // defaultPresetId の後継
+  presets: ModelPresetV1[];    // deprecated、変更せず書き戻す
+  defaultPresetId: string;     // deprecated、変更せず書き戻す
   tts?: VoiceConfigV1;
   stt?: VoiceConfigV1;
-  network: { roomId: string };  // AI Network の既定ルーム。"" = 未設定
-  updatedAt: string;            // ISO 8601、LWW 用
+  network: { roomId: string }; // deprecated、変更せず書き戻す
+  updatedAt: string;           // ISO 8601、LWW 用
+};
+
+type ResolvedLlmTargetV1 = ModelRefV1 & {
+  label: string;               // provider の label
+  baseUrl: string;
+  apiKey: string;
 };
 ```
 
-- **`providers`**: 接続情報のみ = 「どこに繋ぐか」。`baseUrl` + `apiKey` の組。
-- **`presets`**: 名前付きモデル設定 = 「どう呼ぶか」。`providerId` で `LlmProviderV1` を参照する。
-- **`defaultPresetId`**: `presets` のどれを既定として使うかの `id`。空文字は未設定を表す。
-- **`tts`/`stt`**: 音声合成/音声認識の設定。後述。
-- **`network.roomId`**: AI Network(mistlib ルーム)の既定ルームID。空文字は未設定を表す。
-- **`updatedAt`**: ISO 8601。後述の LWW(last-write-wins)判定に使う。
+- **`providers`**: 接続先とモデルカタログ。APIキーは provider に一箇所だけ保持する。
+  同じモデル id でも provider が異なれば別のモデル参照である。
+- **`defaultModel`**: 既定のモデル参照。欠落は未設定。モデルキャッシュに載っていなくても
+  参照は保持できる(キャッシュは利用許可のリストではない)。
+- **`tts`/`stt`**: 形状は従来どおり。独自の接続情報は持たず、provider を参照する。
+- **`presets`/`defaultPresetId`/`network`**: deprecated な移行元。新コードは選択・提供・
+  ルーム管理の保存先に使わず、読み込んだ値を**変更せずに書き戻す(MUST)**。
+  `defaultModel` を変えても対応 preset の作成や `defaultPresetId` の追従は行わない。
+  旧 reader はこれらを必須とするため、省略すると設定全体を無効扱いする。
+  新規設定でも `presets: []`, `defaultPresetId: ""`, `network: {roomId: ""}` を含める。
+  壊れた入力に対する防御的パースは後述。
 
-## provider と preset を分離している理由
+## HTTP / Room provider
 
-同一エンドポイント(同一 `baseUrl`/`apiKey`)に対して複数のモデルを使い分けるケースが
-多い(例: 同じ OpenAI 互換エンドポイントで `gpt-4o-mini` と `gpt-4o` を場面によって使い分ける)。
-接続情報とモデル名を1レコードにまとめてしまうと、モデルを増やすたびに `apiKey` を複製する
-ことになり、APIキーのローテーション時に更新漏れが起きやすい。`LlmProviderV1`(接続)と
-`ModelPresetV1`(呼び方、`providerId` 参照)を分離することで、`apiKey` は provider 側に
-一箇所だけ保持し、preset 側は provider を指す軽量な参照に留める。
+HTTP provider は `baseUrl` + `apiKey` で上流を呼ぶ。Room provider は
+`baseUrl: "mist-network://<roomId>"`, `apiKey: ""` として同じ `providers[]` に格納する。
+既存の疑似プロバイダ行もそのまま Room provider と解釈し、id・label・参照を保持する。
+単一の `network.roomId` に依存せず、複数のルームを同時に使い分けられる。
+同じ roomId の追加では既存行を再利用し、重複する Room provider を作らない。
 
-## tts/stt は独自の接続情報を持たない
+`enabled` 欠落は `true`。`false` は削除ではなく、接続と参照を保持したまま無効化する。
+無効な provider はモデル候補に出さず、モデル一覧を取得しない。無効な Room は join
+せず、提供もしない。タスク・既定・音声の参照を別の provider/model に書き換えては
+ならない。UI は無効な参照に警告を示し、再有効化で元の参照を再利用できるようにする。
 
-`VoiceConfigV1` は `baseUrl`/`apiKey` を持たない。`providerId` を省略した場合は
-「`defaultPresetId` が指す preset の provider」にフォールバックする(解決規則は次節)。
-TTS/STT 専用のエンドポイントを使いたい場合のみ `providerId` を明示すればよく、通常は
-テキスト生成用と同じプロバイダを流用できるようにするための設計。
+Room consumer は、有効かつタスク/既定/TTS/STT が参照中、または提供 ON のルームには
+参加を維持する。それ以外の有効なルームは、設定画面やピッカーを開いたときに必要に
+応じて参加し、広告を取得する。あるルームへの接続が別のルームのセッションを置き換えない。
+
+## モデルカタログ
+
+HTTP は `GET /models`、Room はそのルームの live な `provider_hello.models` から取得する。
+ネットワークモデルを preset として共有設定へミラーしない。Room の live な広告と
+`providers[].models` のキャッシュだけを使う。現在の広告にないキャッシュ項目は古い情報と
+分かる表示にする。
+
+設定画面・モデルピッカー・共有チェックリストを開いたら、キャッシュを即表示し、有効な
+provider を裏で再検証する。追加、baseUrl/apiKey/roomId 編集の確定、再有効化では直ちに
+取得する。取得は provider ごとに同時に1本へまとめ、前回成功から10秒未満の通常再検証は
+省略する。何も開いていない間の定期ポーリングや手動更新ボタンは不要。
+
+取得成功時は `models` と `modelsFetchedAt` を更新し、失敗時は以前のキャッシュと成功時刻を
+保持する。Room 参加中の hello 再送も live な一覧へ反映する。広告を共有可否の変更に
+追従させる規則は [mistllm-wire.md](mistllm-wire.md) を参照。
 
 ## 解決規則
 
-参照実装は `resolvePreset`/`resolveVoice`(下記「reference 実装」参照)。
+- **`resolveModelExact(config, ref?)`**: model が空白のみ、provider が存在しない、
+  `enabled === false`、baseUrl が空白のみなら `null`。それ以外は ref と接続情報を返す。
+  label は provider の値。キャッシュへの掲載は必須条件ではない。既定へのフォールバックは
+  行わず、ルームの共有リスト解決にもこの関数を使う。
+- **`resolveModel(config, ref?)`**: 指定 ref が利用可能ならそれを使い、未指定/利用不能なら
+  利用可能な `defaultModel` だけにフォールバックする。どちらも利用不能なら `null`。
+  `providers[0]` や `presets[0]` は選ばず、保存済み参照は書き換えない。
+- **`resolveVoice(config, kind)`**: `config[kind]` がない、または model が空なら `null`。
+  providerId が省略されていれば `defaultModel.providerId` と音声設定の model を組にする。
+  その ref を `resolveModel` で解決し、voice/speed を付ける。明示した provider が無効な
+  場合も既定への実行時フォールバックだけを行い、保存済み音声設定は変更しない。
 
-- **`resolvePreset(config, presetId?)`**: `presetId` が指す preset があればそれを、
-  無ければ(または未指定なら)`defaultPresetId` が指す preset を使う。見つかった preset の
-  `providerId` が指す provider が存在しない場合は解決失敗(`null`)。存在すれば
-  `{ presetId, providerId, label, baseUrl, apiKey, model, temperature?, reasoningEffort? }`
-  にマージして返す(`label` は preset 側の値)。
-- **`resolveVoice(config, kind)`**(`kind` は `"tts"` | `"stt"`): `config[kind]` が無い、または
-  `model` が空なら解決失敗。`providerId` が指定されていればその provider を、無ければ
-  `resolvePreset(config)`(= 既定preset)が指す provider を使う。provider が見つからなければ
-  解決失敗。見つかれば `{ baseUrl, apiKey, model, voice?, speed? }` を返す。
+解決不能は例外ではなく `null`。呼び出し側は設定エラーとして扱う。
 
-いずれも例外を投げず、解決できない場合は `null` を返す。
+## 音声のルーム別「おまかせ」
+
+TTS/STT のブラウザ標準を選ぶと共有音声設定をクリアする。有効な Room ごとの「おまかせ」は
+`{providerId: <その Room provider の id>, model: "network-auto"}` として保存する。
+`NETWORK_VOICE_AUTO_MODEL` はこの sentinel。チャットモデルとして使わず、広告にも載せない。
+Room への TTS/STT 送信時、`networkVoiceModelParam` で sentinel/空文字を `undefined` に変換し、
+wire の `model` を**省略**する。選んだルームの provider が自身の音声モデルで応答する。
+通常の音声 model id はそのまま渡す。voice/speed の共有スキーマは変更しない。
 
 ## mistllm-wire への橋渡し
 
-`resolvePreset` が返す `ResolvedLlmTargetV1.model` は、そのまま
-[mistllm-wire.md](mistllm-wire.md) の `llm_request.model` に載せてよい(両者とも型は
-`string`)。consumer アプリは preset 解決までをこの契約(llm-config)で行い、解決した
-`model` 名を wire メッセージに橋渡しするだけでよく、それ以上の変換は不要。
+Room を指す解決済み `ModelRefV1.model` は、生のモデル id として `llm_request.model` に
+載せる。preset label への変換はしない。どのピアが対応するかは、そのルーム内の広告と
+[mistllm-wire.md](mistllm-wire.md) の選択・受信規則で扱う。
 
-本契約の責務はローカル設定層での解決までであり、載せた `model` を実際に相手 provider が
-扱えるかどうかの判定はこの契約の対象外: provider が要求 `model` に対応しているかは
-mistllm-wire 側のマッチング(`provider_hello.models` との突き合わせ、
-[mistllm-wire.md](mistllm-wire.md)「consumer 側の provider 選択手順」参照)と、
-対応していない場合の上流エラー伝播(`llm_error`)によって扱われる。
-
-## LWW(last-write-wins)
-
-同一オリジンの複数アプリ(・複数タブ)が同じキーへ書き込みうるため、衝突解決は
-`updatedAt` による LWW とする。`saveLlmConfig` は書き込み時に必ず現在時刻で
-`updatedAt` を上書きするため、後から保存した側の内容が結果的に勝つ。クロスタブ/
-クロスアプリの変更通知は `storage` イベント(`subscribeLlmConfig`)で受け取れる。
-sharedBus のような BroadcastChannel 併用はしない(このキーは低頻度書き込みの設定値であり、
-sharedBus 各トピックのような高頻度な通知ファンアウトは不要と判断)。
+**temperature は使用しない**。旧 preset の `temperature` は互換保存だけのために残し、
+HTTP/ネットワークいずれの生成リクエストにも `temperature` を送らない(上流の既定を使う)。
+reasoning effort は共有モデル参照に含めず、タスクごとのアプリローカル設定に保持する。
+送信できる経路で `reasoning_effort` を付けるが、この変更で wire v1 にフィールドは追加しない。
 
 ## マイグレーション規則
 
-各アプリが自分の旧ローカル設定からこの共有キーへ移行する際のルール(コードでは強制されず、
-規約として全アプリが従う):
+読み込み時に一度だけ、冪等に実行する。共有データとアプリローカルデータは別々に移行し、
+**実際に変更があったときだけ保存**する。`migrateSharedLlmConfig` は config を変更して
+`{changed}` を返すだけで、保存やネットワーク接続は呼び出し側が行う。
 
-1. `loadLlmConfig()` で読み、`null` なら `emptyLlmConfig()` から始める。
-2. 自分の旧ローカル設定の provider/preset を `ensureProvider`/`ensurePreset` で**追加**する。
-   両関数は同値の既存エントリがあれば再利用し、なければ末尾に追加するだけで、既存エントリを
-   削除・上書きすることはない(**merge-never-delete**)。
-3. `defaultPresetId`/`tts`/`stt`/`network.roomId` は**現在値が空/未設定のときのみ**設定する。
-   既に他アプリが設定済みの値を自分の都合で上書きしない。
-4. `saveLlmConfig(config)` で保存する(`updatedAt` は関数側が自動的に現在時刻へ更新する)。
+1. `defaultModel` がない場合だけ、`defaultPresetId` と一致する preset の
+   `{providerId, model}` をコピーする。既存の `defaultModel` を上書きしない。
+2. legacy `network.roomId` が空でなければ `mist-network://<roomId>` の provider を
+   再利用し、なければ label = roomId、apiKey = "" の Room provider を追加する。
+   既存 Room 行は無効なものも含めてそのまま保持する。
+3. HTTP provider に属する旧 preset の手動登録 model を `models` キャッシュへ重複なしで
+   取り込む。実取得ではないため `modelsFetchedAt` は更新しない。アプリは移行完了を
+   ローカルに記録し、後の live 取得で消えた旧 model を読み込みごとに復活させない。
+4. Room provider に属する旧ミラー preset はカタログ移行では無視する。削除やミラー再生成は
+   行わない。既定/タスクの既存参照を移すための lookup は可能だが、live 広告から選び直せる。
+5. アプリローカルのタスク preset id は `presetIdToRef(config, presetId)` で ref に変換する。
+   タスクに reasoning effort があれば保持し、未設定なら旧 preset の `reasoningEffort` を
+   引き継ぐ。存在しない preset への参照から別の preset を勝手に選ばない。
+6. アプリローカルの共有 preset id 配列は、legacy `network.roomId` の Room provider id を
+   キーとする `roomProvide[id].shared` に変換する。HTTP provider の ref のみ対象とし、
+   順序を保持する。旧 `networkProviderEnabled` は同ルームの `enabled`(提供フラグ)へ移す。
+   すでに移行済みのローカル設定は上書きしない。
+7. `presets`/`defaultPresetId`/`network` は全段階で変更せず書き戻す。
 
-この規則により、複数アプリが同時にマイグレーションを行っても、互いの provider/preset を
-消し合ったり、既定値を奪い合ったりしない。
+各アプリのさらに古い接続情報を取り込む場合も merge-never-delete に従う。
+`loadLlmConfig() ?? emptyLlmConfig()` に `ensureProvider` で接続を追加/再利用し、model を
+ref/cache へ取り込む。defaultModel/tts/stt は未設定のときだけ補う。旧 shared フィールドへ
+新しい preset や roomId を書き込まない。
 
-## アプリローカル層の指針
+## アプリローカル層
 
-`tc-shared-llm-config-v1` が持つのは「どこに繋ぐか」「どう呼ぶか」という共有可能な設定までで、
-「どの機能でどの preset を使うか」というアプリ固有のマッピングはこの契約の対象外。各アプリは
-自分のローカルキーに `presetId` への参照を持たせて管理すること。参加7アプリではいずれも
-実装済みで、以下がその実例:
+```ts
+type TaskModelV1 = { ref?: ModelRefV1; reasoningEffort: string };
+type RoomProvideV1 = { enabled: boolean; shared: ModelRefV1[] };
+// tasks: Record<taskId, TaskModelV1>
+// roomProvide: Record<roomProviderId, RoomProvideV1>
+// recentModels: ModelRefV1[] (max 8)
+```
 
-- **tc-town**: `tc-town:characters` の各 `Character.llmProfileId`(フィールド名は移行前の
-  `LlmProfile.id` 参照だった頃のまま温存)が `ModelPresetV1.id` を指す。キャラID→`presetId`
-  のマッピングをキャラクターレコード自体に埋め込む形。詳細は
-  [keys/tc-town.md](keys/tc-town.md)。
-- **tc-news**: `tc-news:provider-settings` の `orchestratorPresetId`/`workerPresetId` が
-  編集部生成パイプラインの orchestrator 役/worker 役それぞれの preset 参照。空文字は
-  `defaultPresetId` に従う。詳細は [keys/tc-news.md](keys/tc-news.md)。
-- **tc-pdf-viewer**: `tc-pdf-viewer-ai-settings-v1` の `taskPresetIds: { explain, translate,
-  chat, ocr }` がタスク種別ごとの preset 参照。詳細は
-  [keys/tc-pdf-viewer.md](keys/tc-pdf-viewer.md)。
-- **tc-translate**: `tc-translate-provider-settings-v1` の `visionPresetId` が画像入力を伴う
-  翻訳(vision)専用の preset 参照。通常のテキスト翻訳は `defaultPresetId` を使う。詳細は
-  [keys/tc-translate.md](keys/tc-translate.md)。
+ref 欠落のタスクは `defaultModel` に従う。reasoning effort の値は
+`none | minimal | low | medium | high | xhigh | max`。`none` は明示的な送信値であり、
+未設定とは異なる。これらと最近使ったモデルはアプリローカルに保存する。
 
-こうすることで、`tc-shared-llm-config-v1` 自体は「利用可能な接続とモデルのカタログ」という
-薄い共有層に留まり、各アプリの機能設計に引きずられない。
+提供 ON/OFF と共有リストも**ルームごと・アプリローカル**。共有キーへ保存すると同一
+オリジンの全タブが提供を始めてしまうため、この共有スキーマには追加しない。提供するのは
+有効な Room の提供フラグが ON の場合だけで、共有できるのは有効な HTTP provider の
+モデルだけ。Room から Room への再共有は禁止する(ループ防止)。提供停止/Room 無効化でも
+共有リストは保持する。旧アプリ別キーカタログに残る preset id はこの移行の入力を示す。
 
-## 信頼境界
+## LWW(last-write-wins)
 
-sharedBus/appManifest/did-identity と同様、同一オリジンで動くアプリ同士は相互に信頼する
-という前提に立つ。`apiKey` を含む本契約もこの信頼境界を変えるものではない —
-`apiKey` は元々各アプリがそれぞれのローカル設定キーに平文で保持していたものであり、
-共有キーへ集約したことで新たに露出範囲が広がるわけではない(同一オリジンの
-`localStorage` は元々そのオリジンで動く全コードからアクセス可能)。悪意あるコードが
-同一オリジン内で偽の provider/preset を書き込むことは技術的に可能であり、これは
-appManifest と同じ「想定内」の前提である。アクセス制御や真正性の判定には使わないこと。
+`saveLlmConfig` は `updatedAt` を現在時刻へ更新する。後から保存した内容が勝つ。
+クロスタブ/クロスアプリ通知は `storage` イベント(`subscribeLlmConfig`)で受け取り、
+BroadcastChannel は併用しない。変更のない移行では保存せず LWW の時刻を動かさない。
 
-## appManifest への記載について
+## 信頼境界 / appManifest
 
-`tc-shared-llm-config-v1` は特定アプリが所有するキーではない共有キーのため、
-[app-manifest.md](app-manifest.md) が定める `AppManifestV1.reads`(他アプリの
-localStorage キーを直読みする一覧)には**載せない**。これは `tc-shared-did-identity-cid-v1`
-と同じ扱いであり([did-identity.md](did-identity.md) 参照)、`reads` は「契約に基づき他アプリ
-"専有"のキーを直読みするケース」を対象とした一覧であるため、co-owned な共有キーは対象外とする。
-
-## 参加アプリ
-
-- tc-note
-- tc-translate
-- tc-pdf-viewer
-- tc-news
-- tc-town
-- tc-travel
-- tc-mistllm
-- tc-books
-- tc-lingo
+同一オリジンのアプリ同士は相互に信頼する。localStorage 内の apiKey は従来どおり平文で
+あり、共有化はアクセス制御や真正性を提供しない。共有キーは特定アプリの専有キーでは
+ないため、[app-manifest.md](app-manifest.md) の `AppManifestV1.reads` には載せない
+([did-identity.md](did-identity.md) と同じ扱い)。
 
 ## reference 実装 / vendor 運用
 
-sharedBus.ts / appManifest.ts と同様、単一の npm パッケージとして共有せず、各参加アプリに
-同一契約のファイルを vendor コピーする(理由は [README.md](../README.md) の
-「原則: ランタイム依存禁止」参照)。参照実装は
-[reference/llmConfig.ts](../reference/llmConfig.ts) /
-[reference/llmConfig.js](../reference/llmConfig.js)。配布先・言語(TS/JS)は
-`protocol/scripts/sync-vendored.mjs` の `APPS` テーブル(`llmConfig: true` のエントリ)を
-参照。appManifest.ts と同様、`APP_NAME` のような置換対象の定数を持たないため、vendored
-コピーは全アプリでバイト同一になる。
-
-## 公開API
+参照実装は [llmConfig.ts](../reference/llmConfig.ts) / [llmConfig.js](../reference/llmConfig.js)。
+この repo 自体はランタイム npm 依存を提供しない。vendor 配布先は
+`scripts/sync-vendored.mjs` の `APPS` テーブルを参照する。全アプリ向けの正本には
+アプリ名置換はない。mistai v0.9.0 の `@tik-choco/mistai/llm-config` もこの契約に従う。
 
 ```ts
 function emptyLlmConfig(): SharedLlmConfigV1;
@@ -210,57 +226,54 @@ function loadLlmConfig(): SharedLlmConfigV1 | null;
 function saveLlmConfig(config: SharedLlmConfigV1): void;
 function subscribeLlmConfig(cb: (config: SharedLlmConfigV1 | null) => void): () => void;
 function normalizeBaseUrl(url: string): string;
-function ensureProvider(config: SharedLlmConfigV1, input: { label?: string; baseUrl: string; apiKey: string }): string;
-function ensurePreset(config: SharedLlmConfigV1, input: { id?: string; label?: string; providerId: string; model: string; temperature?: number; reasoningEffort?: string }): string;
-function resolvePreset(config: SharedLlmConfigV1, presetId?: string | null): ResolvedLlmTargetV1 | null;
-function resolveVoice(config: SharedLlmConfigV1, kind: "tts" | "stt"): { baseUrl: string; apiKey: string; model: string; voice?: string; speed?: number } | null;
+function isModelRef(value: unknown): value is ModelRefV1;
+function resolveModelExact(config: SharedLlmConfigV1, ref?: ModelRefV1): ResolvedLlmTargetV1 | null;
+function resolveModel(config: SharedLlmConfigV1, ref?: ModelRefV1): ResolvedLlmTargetV1 | null;
+function resolveVoice(config: SharedLlmConfigV1, kind: "tts" | "stt"): (ResolvedLlmTargetV1 & {voice?: string; speed?: number}) | null;
+function providerKind(provider: LlmProviderV1): "http" | "room";
+function isNetworkProviderBaseUrl(baseUrl: string): boolean;
+function networkProviderBaseUrl(roomId: string): string;
+function roomIdFromBaseUrl(baseUrl: string): string;
+function networkVoiceModelParam(model: string): string | undefined;
+function ensureProvider(config: SharedLlmConfigV1, input: {label?: string; baseUrl: string; apiKey: string}): string;
+function createProvider(config: SharedLlmConfigV1, label: string): string;
+function createRoomProvider(config: SharedLlmConfigV1, input: {roomId: string; label?: string}): {id: string; existed: boolean};
+function patchProvider(config: SharedLlmConfigV1, id: string, patch: Partial<Omit<LlmProviderV1, "id">>): void;
+function deleteProvider(config: SharedLlmConfigV1, id: string): void;
+function setDefaultModel(config: SharedLlmConfigV1, ref?: ModelRefV1): void;
+function setVoiceConfig(config: SharedLlmConfigV1, kind: "tts" | "stt", next?: VoiceConfigV1): void;
+function migrateSharedLlmConfig(config: SharedLlmConfigV1): {changed: boolean};
+function presetIdToRef(config: SharedLlmConfigV1, presetId: string): ModelRefV1 | undefined;
 ```
 
-- `loadLlmConfig`/`saveLlmConfig`: 他の contract と同じく防御的パース([conventions.md](conventions.md)
-  の「クロスアプリ読み取りの原則」)。`loadLlmConfig` はキー不在・JSON不正・スキーマ不一致で
-  `null` を返し、`providers`/`presets` 配列内の壊れたエントリは個別にスキップする(配列全体を
-  無効化しない)。`saveLlmConfig` は書き込み失敗(ストレージ無効・容量超過等)を `console.warn`
-  した上で無視する(例外を投げない)。
-- `ensureProvider`/`ensurePreset`: 既存エントリの再利用・末尾追加のみを行い、`config` を
-  直接ミューテートする(呼び出し側が別途 `saveLlmConfig` を呼ぶ)。マイグレーション規則の
-  「merge-never-delete」を実現するための中心的な API。
+`ensurePreset`/`resolvePreset` は現行 API から退役する。preset は移行 lookup に限る。
+load はキー不在・不正 JSON・必須 v1 フィールドの欠落/型不一致なら `null`。壊れた
+providers/presets の要素は個別に除外し、壊れた optional defaultModel/tts/stt は無視する。
+正常な legacy 値はそのまま保持する。save はストレージ失敗を warn し、例外を投げない。
+CRUD/移行 helper は config を変更するだけで、自動保存しない。Room 作成 UI は空の roomId を
+拒否する。`networkProviderBaseUrl("")` は旧 helper 互換の `mist-network://default` を返す。
 
 ## バージョニング方針
 
-[SHARED_BUS.md](SHARED_BUS.md)/[app-manifest.md](app-manifest.md) と同じ方針。破壊的変更は
-`tc-shared-llm-config-v1` を `tc-shared-llm-config-v2` のようにサフィックスを1つ上げるか、
-`v` フィールドで分岐する。後方互換なフィールド追加は同じバージョンのままでよい。
+今回の追加は optional なのでキーと `v: 1` を維持する。旧 reader が必要とする legacy
+フィールドを落とさない。将来の破壊的スキーマ変更は新キーまたは v の分岐で扱う。
 
 ## 関連実装: mistl
 
-mistl(OS常駐ノード)は localStorage を持たないネイティブデーモンのため本契約の参加者
-ではないが、同じ provider/preset 分離仕様を `config.toml` の `[ai]` セクションに
-snake_case で採用する。
+mistl は localStorage を持たず本キーの参加者ではないが、同じモデル参照を TOML/IPC に
+snake_case で採用する。ネイティブ設定の legacy フィールドは deserialize/migrate 後に
+再 serialize しない。この点は web の「legacy 値を変更せず書き戻す」義務とは異なる。
 
-| 本契約(localStorage, camelCase) | mistl(config.toml, snake_case) |
+| 本契約(web) | mistl(TOML / config.show JSON) |
 |---|---|
-| `providers[]` `{id,label,baseUrl,apiKey}` | `[[ai.providers]]` `{id,label,base_url,api_key}` |
-| `presets[]` `{id,label,providerId,model,temperature?,reasoningEffort?}` | `[[ai.presets]]` `{id,label,provider_id,model,temperature?,reasoning_effort?}` |
-| `defaultPresetId` | `ai.default_preset_id` |
-| `network.roomId` | `ai.room_id`(既存フィールドが兼任) |
-| `tts`/`stt` | なし(音声非対応、`voice_error` で応答) |
-| (共有 preset の選択。本契約側に対応フィールドなし) | `ai.advertised_models`(`string[]`) |
+| `providers[]` + enabled/models/modelsFetchedAt | `[[ai.providers]]` + enabled/models/models_fetched_at |
+| `defaultModel: {providerId, model}` | `ai.default_ref: {provider_id, model}` |
+| `tts`/`stt` | `ai.tts`/`ai.stt`(voice 等も保持、null でクリア) |
+| アプリローカル `roomProvide[roomProviderId]` | Room provider の `provide`/`shared: [{provider_id, model}]` |
+| legacy `network.roomId`/presets/defaultPresetId | legacy `ai.room_id`/presets/default_preset_id |
 
-レガシーの旧フラットフィールド(`ai.upstream_url`/`upstream_api_key`/`default_model`/
-`temperature`)は読み込み時に provider+preset の組(id `"default"`)へ一度だけ移行し
-(冪等・merge-never-delete、本契約の「マイグレーション規則」と同方針)、保存後は
-旧フィールドを落とす。
-
-`ai.advertised_models` は [mistllm-wire.md](mistllm-wire.md) の
-`provider_hello.models`(「共有対象として明示的に選択した preset の広告名のみ」を
-広告する義務、上記「models(広告名 = ラベル規約)」参照)に対応する mistl 側の設定で、
-**「広告する preset id の配列」**である(2026-07-23 に mistl 側で再定義・修正実装中)。
-旧形式では `ai.presets[].model` と同じ形の生モデル id をそのまま並べる配列だったが、
-この形では上流の全モデルをフィルタなしで広告してしまう(=未選択モデルの露出)ケースと
-区別がつかず、mistllm-wire.md の広告義務に違反していた。再定義後は要素を preset id
-として解釈し、`ai.presets[].id` と一致する preset のみを `provider_hello.models` へ
-その preset の広告名で広告する。旧形式(生モデル id 配列)の設定ファイルは、読み込み時に
-`model` が一致する preset の id へ要素ごとに一度だけ自動 migration する
-(該当する preset が無い生モデル id は破棄する。冪等・merge-never-delete)。
-`ai.advertised_models` が空または未設定の場合は `models` フィールド自体を省略する
-(上記 mistllm-wire.md の規約どおり)。
+旧 advertised_models(共有 preset id 配列)は旧 room_id(未設定なら net::DEFAULT_ROOM)の
+Room provider の shared refs へ移し、モデルがあれば provide = true とする。
+bot の preset_id は model ref へ移す。提供サービスは有効な Room のいずれかが
+provide = true の間だけ動作し、起動時と ai.providers の変更時に join/leave/広告を照合する。
+旧 persisted global providing フラグは移行後の状態源にしない。
