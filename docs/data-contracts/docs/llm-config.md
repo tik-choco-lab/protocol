@@ -47,7 +47,7 @@ type VoiceConfigV1 = {
   providerId?: string;
   model: string;
   voice?: string;
-  speed?: number;
+  speed?: number;            // TTS: tts_request.speed (有限値、0.25..4.0)
 };
 
 type SharedLlmConfigV1 = {
@@ -148,7 +148,16 @@ Room を指す解決済み `ModelRefV1.model` は、生のモデル id として
 **temperature は使用しない**。旧 preset の `temperature` は互換保存だけのために残し、
 HTTP/ネットワークいずれの生成リクエストにも `temperature` を送らない(上流の既定を使う)。
 reasoning effort は共有モデル参照に含めず、タスクごとのアプリローカル設定に保持する。
-送信できる経路で `reasoning_effort` を付けるが、この変更で wire v1 にフィールドは追加しない。
+HTTP では上流の `reasoning_effort`、Room では optional な `llm_request.reasoning_effort`
+で運ぶ。wire は `v: 1` のままで、リクエストの指定値が provider の既定より優先する。
+未設定なら省略し、`none` は明示値として送る。
+
+Room の TTS では共有音声設定の `tts.speed` を `tts_request.speed` へ対応させる。呼び出し側の
+speed オプションがあればそちらを優先し、有限値かつ 0.25 以上 4.0 以下の数値だけを送る。
+未設定 / 不正な値は省略し、provider の既定(mistl は `ai.tts.speed`、未設定なら上流の既定)
+に従う。`tts_request.response_format` は呼び出し側が明示的に要求した場合だけ送り、
+共有音声設定には追加しない。要求した形式を実際の音声形式とみなさず、応答の
+`tts_response.mime` を正として扱う([mistllm-wire.md](mistllm-wire.md) 参照)。
 
 ## マイグレーション規則
 
@@ -268,9 +277,23 @@ snake_case で採用する。ネイティブ設定の legacy フィールドは 
 |---|---|
 | `providers[]` + enabled/models/modelsFetchedAt | `[[ai.providers]]` + enabled/models/models_fetched_at |
 | `defaultModel: {providerId, model}` | `ai.default_ref: {provider_id, model}` |
-| `tts`/`stt` | `ai.tts`/`ai.stt`(voice 等も保持、null でクリア) |
+| `tts`(voice / speed を含む) | `ai.tts`(`tts.speed` ↔ `ai.tts.speed` は 1:1、null でクリア) |
+| `stt` | `ai.stt`(null でクリア。TTS の速度は `ai.tts.speed` に保持し、STT wire には送らない) |
+| アプリローカルの既定タスク effort | `ai.default_reasoning_effort`(既定モデル `ai.default_ref` のタスク設定に相当) |
 | アプリローカル `roomProvide[roomProviderId]` | Room provider の `provide`/`shared: [{provider_id, model}]` |
 | legacy `network.roomId`/presets/defaultPresetId | legacy `ai.room_id`/presets/default_preset_id |
+
+mistl はタスク一覧を持たず、`ai.default_ref` を既定タスクとして扱う。
+`ai.default_reasoning_effort` は省略可能な文字列で、受け付ける値は上記の7値と同じ。省略は未設定、
+`none` は明示値である。不正値は `config set` で拒否し、読み込み時は警告して無視する。
+legacy presets があり新キーが未設定の場合だけ、`default_preset_id` が参照する preset の
+`reasoning_effort` を冪等に引き継ぐ。共有 `defaultModel` やモデル参照の一部にはしない。
+
+Room provider は受信した `llm_request.reasoning_effort` を優先し、省略時だけ
+`ai.default_reasoning_effort` を使う。ローカル API(`/v1/chat/completions` /
+`/v1/rooms/{room}/chat/completions`)と `ai chat` は body / flag の指定値を優先し、
+指定がなく既定モデルへ解決する場合(model 省略または `ai.default_ref` と一致)だけ
+この既定 effort を使う。未設定なら上流へ送らない。
 
 旧 advertised_models(共有 preset id 配列)は旧 room_id(未設定なら net::DEFAULT_ROOM)の
 Room provider の shared refs へ移し、モデルがあれば provide = true とする。
