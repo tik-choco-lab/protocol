@@ -154,7 +154,12 @@ consumer は `"tools"` を広告しない provider に、リクエストの `too
 | `model` | `string` | 任意 | 生モデル id。省略/空文字は下記の既定解決 |
 | `tools` | JSON 配列 | 任意 | OpenAI `tools` 形状の tool 定義。そのまま上流へ渡す(`"tools"` capability が必要) |
 | `tool_choice` | JSON 文字列またはオブジェクト | 任意 | OpenAI `tool_choice` をそのまま上流へ渡す(`"tools"` capability が必要) |
-| `reasoning_effort` | `string` | 任意 | 依頼側タスクの推論の強さ(`none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max`)。provider は指定があれば上流の `reasoning_effort` としてそのまま渡し(自身の既定より優先)、なければ自身の既定を使う。未知の値も素通しする。理解しない旧 provider は無視してよい(後方互換) |
+| `reasoning_effort` | `string` | 任意 | 依頼側タスクの推論の強さ(既知値は `none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max`)。指定値は provider 自身の既定より優先して上流の `reasoning_effort` へ渡す。省略時は provider の既定を使い、既定も未設定なら上流へ送らない。未知の文字列値も素通しする。理解しない旧 provider は無視してよい(後方互換) |
+
+`reasoning_effort` が文字列でない場合はこの**フィールドのみ**を無視し、必須フィールドが
+揃っていれば `llm_request` 自体は受理する。未知の文字列値は前方互換のためそのまま渡す。
+`none` は明示的な送信値であり、省略(未設定)とは異なる。mistl provider の既定タスク
+effort は `ai.default_reasoning_effort` である([llm-config.md](llm-config.md) 参照)。
 
 `ChatMessage` の基本形は `{ role: "system" | "user" | "assistant", content: string }`。
 tools 拡張では次のフィールドを使用できる(optional フィールドは無い場合に省略する):
@@ -364,6 +369,8 @@ consumer 側は `tts_request`/`stt_request` を送るべきではない(送っ�
 | `model` | `string`(`tts_request` のみ) | 任意 | 使用モデル名の指定 |
 | `voice` | `string`(`tts_request` のみ) | 任意 | 声質の指定 |
 | `lang` | `string`(`tts_request` のみ) | 任意 | `text` の言語を表す BCP-47 言語タグのヒント(例 `en`, `ja`, `en-US`) |
+| `speed` | `number`(有限値、0.25 以上 4.0 以下、`tts_request` のみ) | 任意 | 再生速度のヒント(OpenAI `/audio/speech` の `speed`)。範囲外・非数値・非有限値はこのフィールドのみを無視する |
+| `response_format` | `string`(`tts_request` のみ) | 任意 | 希望する音声コンテナ(OpenAI 名: `mp3` / `opus` / `aac` / `flac` / `wav` / `pcm`)。未知の値はこのフィールドのみを無視する |
 | `seq` | `number`(0以上の整数、`tts_response` のみ) | 必須 | リクエストIDごとに0始まりで単調増加する連番(`llm_response_chunk.seq` と異なり必須) |
 | `data` | `string`(`tts_response` のみ) | 必須 | 音声データの base64 サブチャンク |
 | `last` | `boolean`(`tts_response` のみ) | 必須 | 最終チャンクかどうか |
@@ -375,6 +382,13 @@ consumer 側は `tts_request`/`stt_request` を送るべきではない(送っ�
 された下記「後方互換ルール」のパターンの一実例(欠落時のデフォルトは「言語ヒントなし」、
 すなわち下記「provider の `lang` 尊重規則」の「`voice` 指定なし・`lang` なし」と同じ
 従来の扱い)。
+
+`speed` / `response_format` も同じ防御的パースの対象である: `speed` は数値かつ有限値で
+0.25 以上 4.0 以下の場合だけ採用する。数値文字列への型変換や範囲内への丸めは行わない。
+`response_format` は上記6値のいずれかと完全一致する文字列の場合だけ採用する。非文字列・
+空文字列・未知の値は無視する。いずれも不正な**フィールドのみ**を無視し、必須フィールドが
+揃っていれば `tts_request` 自体は受理する。optional フィールド追加なので `v: 1` を維持し、
+理解しない旧 provider は無視してよい。欠落時の扱いは下記の規則に従う。
 
 consumer(`mistai/src/voice-consumer.ts` の `VoiceConsumerService`)は `seq` が期待値
 (`nextSeq`)と一致しないチャンクを受け取ると即座にリクエストを失敗させる
@@ -416,6 +430,30 @@ tc-translate・mistai(wire 層)はこの挙動で実装済み。mistl は voice 
 
 `lang` に基づく voice 自動選択は mistai v0.7.0 で実装。mistl も同ヒントを尊重する対応を
 実装中である(本稿執筆時点で未コミット)。
+
+#### provider / consumer の `speed` / `response_format` 規則
+
+| フィールド | provider の指定あり時の扱い | 省略時の扱い |
+|---|---|---|
+| `speed` | 検証済みの指定値を上流の音声合成呼び出しへ渡す(provider 自身の既定より優先) | provider の既定を使う。mistl は `ai.tts.speed` が設定されていればそれを使い、未設定なら上流の既定を使う |
+| `response_format` | 検証済みの指定値を上流の音声合成呼び出しへ渡す | provider / 上流の既定の音声形式を使う |
+
+上流 / バックエンドが `response_format` に対応できない場合も合成を行い、**実際に返す
+音声の形式**を `tts_response.mime` に載せる。consumer は要求した形式ではなく
+**`tts_response.mime` を正として扱わなければならない(MUST)**(trust `tts_response.mime`)。
+チャンク受信時は上記の通り最初のチャンクの `mime` を採用する。
+
+consumer は共有音声設定の `tts.speed`(`VoiceConfigV1`、[llm-config.md](llm-config.md))、
+または呼び出し側のオプションから `tts_request.speed` を送る。呼び出し側の指定があれば
+そちらを優先し、どちらも未設定なら省略する。`response_format` は呼び出し側が明示的に
+要求した場合だけ送る(共有音声設定には保存しない)。
+
+mistai v0.10.0 の consumer API(`requestRoomTts` / `VoiceConsumerService`)では
+`{speed, responseFormat}` を受け付け、wire では `speed` / `response_format` に対応させる。
+provider の合成関数には既存の位置引数を維持したまま、末尾に一つの options オブジェクト
+`{speed?: number; responseFormat?: string}` を追加して渡す。mistl の `ai serve`
+`/v1/audio/speech` も body の `speed` / `response_format` を転送し、Room 経由でも同じ
+`tts_request` フィールドで運ぶ。
 
 ### `stt_request` / `stt_response`
 
@@ -501,7 +539,10 @@ provider/preset や他のルームへフォールバックしない。defaultMod
 HTTP 上流への生成リクエストに temperature を付けない。
 
 **reasoning effort**(2026-10-04 追加): consumer は依頼タスクの推論の強さを `llm_request.reasoning_effort`
-で送る。provider はあればそれを上流へ渡し、なければ自身の既定を使う。ストリーミングはそのまま。
+で送る。未設定なら省略し、`none` は明示値として送る。provider は指定された文字列を
+自身の既定より優先して上流へ渡す(未知の文字列値も素通し)。省略時は自身の既定
+(mistl は `ai.default_reasoning_effort`)を使い、既定も未設定なら上流へ送らない。
+非文字列はフィールドのみを無視する(上記 `llm_request` 参照)。ストリーミングはそのまま。
 ルーム経由の**チャットは常に `llm_request`** を使い、effort を運ぶために oai トンネルへ迂回しない。
 oai トンネルは `llm_request` で運べないもの(画像 content part を含む vision/OCR、`/models`、`/embeddings`)専用とする
 (`ChatMessage.content` はワイヤ上で文字列のため)。
@@ -610,10 +651,13 @@ consumer はリクエストID(`id`)ごとに以下の状態を保持する:
 - **フィールド追加は破壊的変更ではない**: 既存メッセージ種別に optional フィールドを
   追加しても `v` は `1` のまま据え置く(`llm_response_chunk.seq`、および
   `provider_hello.services`/`provider_hello.voices`/`llm_error.code`/`voice_error.code`/
-  `tts_request.lang` はいずれもこのパターンの実例)。受信側は未知フィールドを無視し、
+  `llm_request.reasoning_effort`/`tts_request.lang`/`tts_request.speed`/
+  `tts_request.response_format` はいずれもこのパターンの実例)。受信側は未知フィールドを無視し、
   欠落フィールドにはデフォルト値(`seq` なら「並べ替えなしで即時適用」、`services` なら
   `["chat"]`、`voices` なら「voice 広告なし」、`lang` なら「言語ヒントなし(従来の
-  デフォルト解決)」)を当てる実装にすること。
+  デフォルト解決)」、`reasoning_effort` なら「provider の既定(未設定なら上流へ送らない)」、
+  `speed` なら「provider の既定(mistl は `ai.tts.speed`、未設定なら上流の既定)」、
+  `response_format` なら「provider / 上流の既定の音声形式」)を当てる実装にすること。
 - **メッセージ種別の追加**も `v: 1` のまま可能。未知の `type` を受信した側はメッセージ
   全体を破棄する(エラーにはしない)。
 - **tools 拡張も `v: 1` のまま**: `tools`/`tool_choice`/`tool_calls`/`tool_call_id` は

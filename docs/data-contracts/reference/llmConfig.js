@@ -32,7 +32,8 @@
  * @property {string} [providerId] Omitted means the defaultModel provider.
  * @property {string} model Room auto-selection uses network-auto.
  * @property {string} [voice]
- * @property {number} [speed]
+ * @property {number} [speed] TTS: finite 0.25..4.0 hints map to tts_request.speed; absent uses the provider default.
+ * response_format is caller-only and is not stored in this config.
  */
 /**
  * @typedef {object} SharedLlmConfigV1

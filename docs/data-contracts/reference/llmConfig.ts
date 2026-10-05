@@ -33,6 +33,8 @@ export type VoiceConfigV1 = {
   providerId?: string;
   model: string;
   voice?: string;
+  /** TTS: finite 0.25..4.0 hints map to tts_request.speed; absent uses the provider default.
+   * response_format is caller-only and is not stored in this config. */
   speed?: number;
 };
 
