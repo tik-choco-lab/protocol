@@ -25,6 +25,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 'lts/*'
+          check-latest: true
+
       # index.html reads its navigation, key catalog and search index from
       # site-index.json. Regenerating here means the published site is always
       # current even when a docs commit forgot to refresh the committed copy.
